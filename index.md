@@ -1,3 +1,3 @@
-= My Homepage
-== Hello, world!
+# My Homepage
+## Hello, world!
 
