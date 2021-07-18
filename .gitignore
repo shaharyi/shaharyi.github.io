@@ -1,0 +1,3 @@
+# slash means dir relative to this .gitignore dir level, not any level below as it would mean without the slash
+/.idea
+
