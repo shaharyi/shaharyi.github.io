@@ -1,7 +1,7 @@
 /** @module graph_components */
 
 import * as consts from './consts.js';
-import { is_Mealy, is_Moore, is_Turing } from './menus.js';
+import { is_Mealy, is_Moore, is_Turing, initial_stack_symbol, allow_epsilon_transition, pda_extended_transition } from './menus.js';
 
 /**
  * making a new vertex
@@ -67,13 +67,13 @@ export function make_edge(from, to, transition, a1, a2, angle1, angle2, pop_symb
   return {
     from: from,
     to: to,
-    transition: transition ? transition : get_empty_symbol(),
+    transition: transition ? transition : allow_epsilon_transition() ? get_empty_symbol() : 'a',
     a1: a1,
     a2: a2,
     angle1: angle1,
     angle2: angle2,
-    pop_symbol: pop_symbol ? pop_symbol : get_empty_symbol(),
-    push_symbol: push_symbol ? push_symbol : get_empty_symbol(),
+    pop_symbol: pop_symbol ? pop_symbol : initial_stack_symbol() ? consts.STACK_INITIAL_SYMBOL : get_empty_symbol(),
+    push_symbol: push_symbol ? push_symbol : !pda_extended_transition() ? get_empty_symbol() : 'N',
     move: move ? move : consts.RIGHT,
     mealy_output: mealy_output ? mealy_output : consts.DEFAULT_MEALY_OUTPUT
   };

@@ -3,6 +3,7 @@
 import * as consts from './consts.js';
 import * as drawing from './drawing.js';
 import { edge_equal } from './graph_components.js';
+import { allow_epsilon_transition, initial_stack_symbol, pda_extended_transition } from './menus.js';
 
 /** given a graph and its input, compute the input alphabet */
 export function compute_alphabet(graph, input) {
@@ -216,10 +217,11 @@ function config_to_vertices(cur_configs) {
  * @returns {Iterable} a generator that evaluates to true iff the input is accepted by the machine
  */
 function* BFS_step(graph, v, remaining_input, interactive=false, allowed_depth=64) {
-  let stack = ['#'];  // the computational stack
+  let stack =  initial_stack_symbol() ? [consts.STACK_INITIAL_SYMBOL] : [];  // the computational stack
   let cur_configs = new Map(), nxt_configs = new Map();  // the current configurations [vertex, stack, remaining_input]
   cur_configs.set(JSON.stringify([v, stack, remaining_input]), [v, stack, remaining_input]);
-  PDA_closure(graph, cur_configs);
+  if (allow_epsilon_transition())
+    PDA_closure(graph, cur_configs);
   if (interactive) {
     drawing.highlight_states(graph, config_to_vertices(cur_configs));
     drawing.viz_PDA_configs(graph, cur_configs);
@@ -232,25 +234,41 @@ function* BFS_step(graph, v, remaining_input, interactive=false, allowed_depth=6
       for (const edge of graph[v].out) {
         const {transition, to, pop_symbol, push_symbol} = edge;
         const stack_copy = [...stack], input_copy = [...remaining_input];  // deep clone the input and stack
-        if (transition !== consts.EMPTY_SYMBOL && transition !== input_copy.pop()) {
+        if ((!allow_epsilon_transition() || transition !== consts.EMPTY_SYMBOL) && transition !== input_copy.pop()) {
           continue;  // input mismatch
         }
         const topsym = stack_copy.pop();
-        stack_copy.push(topsym);
-        if (pop_symbol !== consts.EMPTY_SYMBOL && pop_symbol !== topsym) {
+        if (pda_extended_transition()) 
+          stack_copy.push(topsym);
+        if ((!allow_epsilon_transition() || pop_symbol !== consts.EMPTY_SYMBOL) && pop_symbol !== topsym) {
           continue;  // stack mismatch
         }
         // now we can go since both transition and stack match
-        if (push_symbol !== consts.EMPTY_SYMBOL) {  
-          const op = push_symbol[0];
-          if (op == '+')
-            push_symbol.substring(1).split('').map(x => stack_copy.push(x));
-          if (op == '-' && topsym == push_symbol.substring(1)) {
-            const x = stack_copy.pop();
-            if (x == '=')    // cannot pop start symbol
-              stack_copy.push(x);
-          }
-        }
+        if (!pda_extended_transition()) {
+          if (push_symbol !== consts.EMPTY_SYMBOL) {  
+              push_symbol.split('').map(x => stack_copy.push(x));
+              const x = stack_copy.pop();
+              if (x == consts.STACK_INITIAL_SYMBOL)    // cannot pop start symbol
+                stack_copy.push(x);
+            }
+          } else {
+            switch (push_symbol[0]) {
+              case 'N':
+                break;
+              case '+':
+                push_symbol.substring(1).split('').map(x => stack_copy.push(x));
+                break;
+              case '-':
+                if (topsym == push_symbol.substring(1)) {
+                  const x = stack_copy.pop();
+                  if (x == consts.STACK_INITIAL_SYMBOL)    // refuse to pop start symbol
+                    stack_copy.push(x);
+                }
+                break;
+              default:
+                print('bad input');
+              }
+          }        
         if (graph[to].is_final && !input_copy.length) {  // final state + exhausted input
           if (interactive) {
             const cur_vertices = config_to_vertices(cur_configs);
@@ -262,7 +280,8 @@ function* BFS_step(graph, v, remaining_input, interactive=false, allowed_depth=6
         nxt_configs.set(JSON.stringify([to, stack_copy, input_copy]), [to, stack_copy, input_copy]);
       }
     }
-    PDA_closure(graph, nxt_configs);
+    if (allow_epsilon_transition())
+      PDA_closure(graph, nxt_configs);
     if (interactive) {
       if (nxt_configs.size) {  // not the last step
         drawing.highlight_states(graph, config_to_vertices(nxt_configs));

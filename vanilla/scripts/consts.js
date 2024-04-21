@@ -196,3 +196,5 @@ export const SIGMA = '\u03A3';
 
 /** @constant {string} EMPTY_SET - empty set symbol for regular expressions */
 export const EMPTY_SET = '\u2205';
+
+export const STACK_INITIAL_SYMBOL = '\u22A5';

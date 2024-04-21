@@ -64,6 +64,18 @@ export function is_Regex() {
   return machine_type() === consts.MACHINE_TYPES.Regex;
 }
 
+export function allow_epsilon_transition() {
+  return false;
+}
+
+export function initial_stack_symbol() {
+  return true;
+}
+
+export function pda_extended_transition() {
+  return true;
+}
+
 /**
  * creates the context menu to change a vertex and display it
  * @param {Object} graph - the graph containing the vertex v

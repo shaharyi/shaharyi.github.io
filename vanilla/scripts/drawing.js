@@ -320,9 +320,9 @@ export function draw_edge(graph, edge, text_size, arrow=true) {
     draw_arrow(start, end, mid, edge_text, text_size);
 
   if (menus.is_PDA()) {  // append pop and push if we have PDA
-    edge_text += ','+pop_symbol+consts.ARROW_SYMBOL+push_symbol;
+    edge_text += ','+pop_symbol+'/'+push_symbol;
   } else if (menus.is_Turing()) {  // append push and left/right if we have turing
-    edge_text += consts.ARROW_SYMBOL+push_symbol+','+move;
+    edge_text += '/' +push_symbol+','+move;
   } else if (menus.is_Mealy()) {
     edge_text += ' / ' + mealy_output;
   }

@@ -208,12 +208,27 @@ export function delete_edge(graph, edge) {
  */
 export function rename_edge(graph, edge, new_transition, new_pop, new_push, new_left_right, new_mealy_output) {
   menus.remove_context_menu();
+  const empty_sym = graph_components.get_empty_symbol();
+  
+  if (!menus.allow_epsilon_transition()) {
+    let msg = null;
+    if (!new_transition || new_transition == empty_sym) 
+      msg = 'epsilon transitions not allowed';
+    else if (!new_pop || new_pop == empty_sym) 
+      msg = 'epsilon stack transition is not allowed';
+    else if (!new_push || new_push == empty_sym)
+      msg = 'epsilon operation not allowed';
+    if (msg) {
+      alert(msg);
+      return;
+    }
+  }
   const new_edge = {...edge,
-    transition: new_transition ? new_transition : graph_components.get_empty_symbol(),
-    pop_symbol: new_pop ? new_pop : graph_components.get_empty_symbol(),
-    push_symbol: new_push ? new_push : graph_components.get_empty_symbol(),
+    transition: new_transition ? new_transition : empty_sym,
+    pop_symbol: new_pop ? new_pop : empty_sym,
+    push_symbol: new_push ? new_push : empty_sym,
     move: new_left_right,
-    mealy_output: new_mealy_output ? new_mealy_output : graph_components.get_empty_symbol()
+    mealy_output: new_mealy_output ? new_mealy_output : empty_sym
   };
   
   if (compute.edge_has_equiv_edge_in_graph(graph, new_edge)) {  // new edge clashes with old
