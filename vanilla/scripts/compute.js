@@ -434,23 +434,39 @@ function* run_input_Moore(graph, input, interactive) {
  *                     if interactive, evaluates step by step with highlight
  */
 export function run_input(graph, machine_type, input, interactive=false) {
+  let arr = input.split(',');
   if (interactive) {
     drawing.highlight_states(graph, []);  // clear all highlights
+    arr = arr.slice(0,1);
   }
-
   if (!Object.keys(graph).length) {  // empty graph
     return 'The graph is empty; nothing to do...';
-  } else if (machine_type === consts.MACHINE_TYPES.NFA) {
-    return run_input_NFA(graph, input, interactive);
-  } else if (machine_type === consts.MACHINE_TYPES.PDA) {
-    return run_input_PDA(graph, input, interactive);
-  } else if (machine_type === consts.MACHINE_TYPES.Turing) {
-    return run_input_Turing(graph, input, interactive);
-  } else if (machine_type === consts.MACHINE_TYPES.Mealy && is_DFA(graph, input)) {
-    return run_input_Mealy(graph, input, interactive);
-  } else if (machine_type === consts.MACHINE_TYPES.Moore && is_DFA(graph, input)) {
-    return run_input_Moore(graph, input, interactive);
   }
+  let r = true;
+  let output = true;
+  for (input of arr) {
+    drawing.viz_NFA_input(input, 0);
+    console.log(input);
+    if (machine_type === consts.MACHINE_TYPES.NFA) {
+      r = run_input_NFA(graph, input, interactive);
+    } else if (machine_type === consts.MACHINE_TYPES.PDA) {
+      r = run_input_PDA(graph, input, interactive);
+    } else if (machine_type === consts.MACHINE_TYPES.Turing) {
+      r = run_input_Turing(graph, input, interactive);
+    } else if (machine_type === consts.MACHINE_TYPES.Mealy && is_DFA(graph, input)) {
+      r = run_input_Mealy(graph, input, interactive);
+    } else if (machine_type === consts.MACHINE_TYPES.Moore && is_DFA(graph, input)) {
+      r = run_input_Moore(graph, input, interactive);
+    } else
+      console.log('Bug - did not find machine type ' + machine_type);
+    if (!interactive) {
+      output = r.next().value;
+      if (!output) {
+        return false;
+      }
+    }
+  }
+  return (interactive) ? r : output;
 }
 
 /** given an NFA, check if it is in fact deterministic */

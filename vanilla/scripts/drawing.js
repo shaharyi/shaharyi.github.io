@@ -469,7 +469,7 @@ export function highlight_states(graph, cur_states) {
  */
 export function viz_NFA_input(input_str, index) {
   const canvas = get_canvas();
-  const pos = [canvas.width*consts.INPUT_VIZ_WIDTH_R, canvas.height*consts.INPUT_VIZ_HEIGHT_R];
+  const pos = [700, 50]; //canvas.width*consts.INPUT_VIZ_WIDTH_R, canvas.height*consts.INPUT_VIZ_HEIGHT_R];
   const color_map = [];
   for (let i = 0; i < input_str.length; ++i) {
     if (i < index) {
@@ -480,6 +480,7 @@ export function viz_NFA_input(input_str, index) {
       color_map.push(consts.DEFAULT_INPUT_COLOR);
     }
   }
+  canvas.getContext('2d').clearRect(600,0,1500,60);
   draw_text(input_str, pos, consts.DEFAULT_VIZ_SIZE, color_map);
 }
 

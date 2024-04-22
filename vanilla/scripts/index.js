@@ -233,7 +233,8 @@ export function bind_run_input() {
     drawing.highlight_states(graph, []);  // clear the highlighting
     computations[new_input_idx] = compute.run_input(graph, menus.machine_type(), textbox.value);  // noninteractive
     // eslint-disable-next-line no-unused-vars
-    const { value: output, _ } = computations[new_input_idx].next();  // second value always true when noninteractive
+    const output = computations[new_input_idx];  // returns true when noninteractive
+    console.log(output);
     if(menus.machine_type() === consts.MACHINE_TYPES.Moore || menus.machine_type() === consts.MACHINE_TYPES.Mealy) {
       window.setTimeout(() => alert(output), 0);  // alert after the color change
     } else {
