@@ -331,9 +331,9 @@ export function draw_edge(graph, edge, text_size, arrow=true) {
 
 /* load the asset before it is drawn */
 const normal_trash = new Image();
-normal_trash.src = '../assets/icon-trash.svg';
+normal_trash.src = 'assets/icon-trash.svg';
 const red_trash = new Image();
-red_trash.src = '../assets/icon-hover-trash.svg';
+red_trash.src = 'assets/icon-hover-trash.svg';
 let trash = normal_trash;
 let trash_inited = false;
 
