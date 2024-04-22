@@ -246,7 +246,9 @@ function expandIcon(nameOfClass){
 }
 
 function redirectToBugReport() {
-  window.open('https://github.com/flapjs/vanilla/issues', '_blank');
+  let orig = 'https://github.com/flapjs/vanilla/issues';
+  let url = 'https://github.com/shaharyi/shaharyi.github.io/issues';
+  window.open(url, '_blank');
   //below is code for opening bug report in current tab of browser
   //window.location.href = 'https://github.com/flapjs/vanilla/issues';
 }
