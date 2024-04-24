@@ -217,6 +217,7 @@ function config_to_vertices(cur_configs) {
  * @returns {Iterable} a generator that evaluates to true iff the input is accepted by the machine
  */
 function* BFS_step(graph, v, remaining_input, interactive=false, allowed_depth=64) {
+  console.log('remaining_input = ' + remaining_input);
   let stack =  initial_stack_symbol() ? [consts.STACK_INITIAL_SYMBOL] : [];  // the computational stack
   let cur_configs = new Map(), nxt_configs = new Map();  // the current configurations [vertex, stack, remaining_input]
   cur_configs.set(JSON.stringify([v, stack, remaining_input]), [v, stack, remaining_input]);
@@ -227,14 +228,23 @@ function* BFS_step(graph, v, remaining_input, interactive=false, allowed_depth=6
     drawing.viz_PDA_configs(graph, cur_configs);
     yield;
   }
-  
+  if (graph[v].is_final && !remaining_input.length) {  // final state + empty input
+    if (interactive) {
+      const cur_vertices = config_to_vertices(cur_configs);
+      cur_vertices.add(v);
+      drawing.highlight_states(graph, cur_vertices);
+    }
+    return true;
+  }
   while (cur_configs.size && allowed_depth --> 0) {
     // process all configurations on a single depth of the BFS tree
     for (const [v, stack, remaining_input] of cur_configs.values()) {
       for (const edge of graph[v].out) {
         const {transition, to, pop_symbol, push_symbol} = edge;
         const stack_copy = [...stack], input_copy = [...remaining_input];  // deep clone the input and stack
+        console.log('letter: '+ input_copy[input_copy.length-1]);
         if ((!allow_epsilon_transition() || transition !== consts.EMPTY_SYMBOL) && transition !== input_copy.pop()) {
+          console.log('input letter mismatch');
           continue;  // input mismatch
         }
         const topsym = stack_copy.pop();
@@ -253,17 +263,14 @@ function* BFS_step(graph, v, remaining_input, interactive=false, allowed_depth=6
             }
           } else {
             switch (push_symbol[0]) {
-              case 'N':
+              case 'N':  //no-op
                 break;
-              case '+':
+              case '+':  //push
                 push_symbol.substring(1).split('').map(x => stack_copy.push(x));
                 break;
-              case '-':
-                if (topsym == push_symbol.substring(1)) {
-                  const x = stack_copy.pop();
-                  if (x == consts.STACK_INITIAL_SYMBOL)    // refuse to pop start symbol
-                    stack_copy.push(x);
-                }
+              case '-':  //pop, unless its the stack bottom symbol
+                if (topsym == push_symbol[1] && stack_copy[stack_copy.length-1] != consts.STACK_INITIAL_SYMBOL)
+                  stack_copy.pop();
                 break;
               default:
                 print('bad input');
