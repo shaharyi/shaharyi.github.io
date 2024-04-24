@@ -135,6 +135,11 @@ ul {
 
 /***** End The Sidebar of Icons *****/
 
+.pda_help {
+  font-family: "Lucida Console", Courier, monospace;
+  color: #c7c2c2;
+}
+
 /***** The Second Sidebar That Rolls Out *****/
 #secondbar {
   height: 100%; /* Full-height: remove this if you want "auto" height */
