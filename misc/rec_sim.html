@@ -1,0 +1,2086 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>סימולטור רקורסיה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=JetBrains+Mono:wght@400;500;600&family=Rubik:wght@500;600&display=swap">
+<style>
+/* פריסה: שני חלונות זה לצד זה. עורך הקוד משמאל, אנימציית הרקורסיה מימין.
+   הלוך = כחול (יורד), חזור = כתום (עולה). */
+:root {
+  --bg: #e6ebed;
+  --panel: #fbfcfc;
+  --panel-2: #eff3f4;
+  --ink: #14202a;
+  --ink-2: #485a66;
+  --ink-3: #75858f;
+  --line: #d0d9de;
+  --fwd: #1c5bd0;
+  --fwd-soft: #e2ecff;
+  --ret: #bf5309;
+  --ret-soft: #ffeadb;
+  --good: #17744a;
+  --bad: #c0303b;
+  --bad-soft: #fde7e9;
+  --code-bg: #fdfefe;
+  --gutter: #f1f5f6;
+  --kw: #7a3fc2; --ty: #0a756f; --fn: #1c5bd0; --str: #b04e14; --num: #0d6c97; --cm: #7d8c96;
+  --hl-call: #dbe7ff; --hl-ret: #ffe5d2; --hl-err: #fbd5d9;
+  --shadow: 0 1px 2px rgba(20,32,42,.08), 0 4px 14px rgba(20,32,42,.06);
+  --font-ui: 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-head: 'Rubik', 'Assistant', system-ui, sans-serif;
+  --font-code: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --spd: 1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1217; --panel: #141c22; --panel-2: #1a242b; --ink: #e5edf1; --ink-2: #a5b5be; --ink-3: #74858f; --line: #263540;
+    --fwd: #7ca6ff; --fwd-soft: #172a4d; --ret: #ffad5c; --ret-soft: #3b2512;
+    --good: #5bd196; --bad: #ff7b86; --bad-soft: #3a171c;
+    --code-bg: #10181d; --gutter: #162027;
+    --kw: #c39bff; --ty: #62d6cc; --fn: #8db3ff; --str: #ffb27a; --num: #7cc6ec; --cm: #6f808a;
+    --hl-call: #1b3260; --hl-ret: #47290f; --hl-err: #5a1f27;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.28);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1217; --panel: #141c22; --panel-2: #1a242b; --ink: #e5edf1; --ink-2: #a5b5be; --ink-3: #74858f; --line: #263540;
+  --fwd: #7ca6ff; --fwd-soft: #172a4d; --ret: #ffad5c; --ret-soft: #3b2512;
+  --good: #5bd196; --bad: #ff7b86; --bad-soft: #3a171c;
+  --code-bg: #10181d; --gutter: #162027;
+  --kw: #c39bff; --ty: #62d6cc; --fn: #8db3ff; --str: #ffb27a; --num: #7cc6ec; --cm: #6f808a;
+  --hl-call: #1b3260; --hl-ret: #47290f; --hl-err: #5a1f27;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.28);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); font-size: 15px; line-height: 1.45;
+  padding-inline: 16px; padding-block: 12px;
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--fwd); outline-offset: 2px; }
+.code { direction: ltr; unicode-bidi: isolate; font-family: var(--font-code); font-size: .92em; }
+
+.app {
+  direction: ltr;
+  height: 100%;
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 12px;
+}
+.panel {
+  min-width: 0; min-height: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow);
+}
+.rtl { direction: rtl; }
+
+/* ---------- סרגל כלים ---------- */
+.toolbar {
+  direction: rtl;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--panel-2);
+}
+.brand { font-family: var(--font-head); font-weight: 600; font-size: 15px; margin-inline-end: auto; letter-spacing: .1px; }
+.ctrls { direction: ltr; display: flex; gap: 6px; align-items: center; }
+.btn {
+  direction: rtl;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 13px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); cursor: pointer; font-weight: 600; font-size: 14px;
+  transition: background .12s, border-color .12s, transform .06s;
+}
+.btn:hover:not(:disabled) { border-color: var(--ink-3); background: var(--panel-2); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn svg { width: 15px; height: 15px; fill: currentColor; flex: none; }
+.btn.run { background: var(--ink); color: var(--panel); border-color: var(--ink); min-width: 104px; justify-content: center; }
+.btn.run:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); filter: brightness(1.18); }
+.speed { direction: rtl; display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.speed input[type=range] { width: 110px; accent-color: var(--fwd); }
+.speed output { min-width: 3.1ch; text-align: end; font-family: var(--font-code); font-size: 12.5px; color: var(--ink); direction: ltr; }
+.sel {
+  direction: rtl; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel);
+  padding: 0 10px; font-weight: 600; font-size: 14px; cursor: pointer; max-width: 100%;
+}
+.progress { direction: rtl; flex-basis: 100%; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-2); }
+.progress .bar { flex: 1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; direction: rtl; }
+.progress .bar i { display: block; height: 100%; width: 0; background: var(--fwd); transition: width .2s; }
+.progress .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress b { font-family: var(--font-code); font-weight: 500; color: var(--ink); direction: ltr; unicode-bidi: isolate; }
+
+/* ---------- עורך ---------- */
+.editor-wrap { position: relative; flex: 1 1 auto; min-height: 220px; display: flex; background: var(--code-bg); overflow: hidden; }
+.gutter {
+  flex: none; width: 46px; background: var(--gutter); border-inline-end: 1px solid var(--line);
+  overflow: hidden; position: relative; user-select: none;
+}
+.gutter-in { position: absolute; inset-inline: 0; top: 0; padding-block: 10px; }
+.gutter span { display: block; height: 21px; line-height: 21px; text-align: end; padding-inline-end: 9px; font: 12px/21px var(--font-code); color: var(--ink-3); }
+.gutter span.on { color: var(--ink); font-weight: 700; }
+.gutter span.err { color: var(--bad); font-weight: 700; }
+.code-area { position: relative; flex: 1; min-width: 0; }
+.hl, .ta {
+  font: 13.5px/21px var(--font-code); tab-size: 4; letter-spacing: 0; white-space: pre; margin: 0;
+  padding: 10px 14px; border: 0;
+}
+.hl-clip { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.hl { position: absolute; top: 0; left: 0; min-width: 100%; color: var(--ink); }
+.hl .ln { display: block; height: 21px; margin-inline: -14px; padding-inline: 14px; box-sizing: content-box; }
+.hl .ln.call { background: var(--hl-call); box-shadow: inset 3px 0 0 var(--fwd); }
+.hl .ln.ret { background: var(--hl-ret); box-shadow: inset 3px 0 0 var(--ret); }
+.hl .ln.errl { background: var(--hl-err); box-shadow: inset 3px 0 0 var(--bad); }
+.ta {
+  position: absolute; inset: 0; width: 100%; height: 100%; resize: none; overflow: auto;
+  background: transparent; color: transparent; caret-color: var(--ink); outline: none; direction: ltr; text-align: left;
+}
+.ta::selection { background: color-mix(in srgb, var(--fwd) 30%, transparent); color: transparent; }
+.t-kw { color: var(--kw); font-weight: 500; } .t-ty { color: var(--ty); } .t-fn { color: var(--fn); }
+.t-str { color: var(--str); } .t-num { color: var(--num); } .t-cm { color: var(--cm); font-style: italic; }
+
+/* ---------- פלט ---------- */
+.console { flex: none; height: 118px; border-top: 1px solid var(--line); display: flex; flex-direction: column; background: var(--panel); }
+.console h3 { direction: rtl; margin: 0; padding: 6px 12px; font-size: 12px; font-weight: 700; letter-spacing: .6px; color: var(--ink-3); text-transform: uppercase; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.console pre { flex: 1; margin: 0; padding: 8px 12px; overflow: auto; font: 13px/1.55 var(--font-code); white-space: pre-wrap; unicode-bidi: plaintext; text-align: start; }
+.console pre.empty { color: var(--ink-3); font-family: var(--font-ui); }
+.console pre .e { color: var(--bad); }
+
+/* ---------- אנימציה ---------- */
+.viz { direction: rtl; }
+.viz-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.viz-head h2 { margin: 0; font-family: var(--font-head); font-weight: 600; font-size: 15px; margin-inline-end: auto; }
+.legend { display: flex; gap: 14px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { width: 12px; height: 18px; }
+.legend .f { color: var(--fwd); } .legend .r { color: var(--ret); }
+.viz-scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px 16px 24px; position: relative; scroll-behavior: smooth; }
+.stack { direction: ltr; display: flex; flex-direction: column; align-items: flex-start; min-width: min-content; }
+
+.win {
+  direction: rtl; width: min(430px, calc(100% - var(--ind, 0px))); min-width: 220px; flex: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 9px; box-shadow: var(--shadow); overflow: hidden;
+  transform-origin: 50% 0;
+  transition: border-color .25s, box-shadow .25s;
+}
+.win .bar { display: flex; align-items: center; gap: 9px; padding: 6px 10px; background: var(--panel-2); border-bottom: 1px solid var(--line); transition: background .25s; }
+.win .dots { display: inline-flex; gap: 4px; direction: ltr; }
+.win .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); display: block; }
+.win .ttl { font-weight: 600; font-size: 13.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-inline-end: auto; direction: ltr; }
+.win .num { font: 11.5px var(--font-code); color: var(--ink-3); direction: ltr; }
+.win .body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+.params { display: flex; flex-wrap: wrap; gap: 5px 12px; direction: ltr; justify-content: flex-end; }
+.params .p { font: 12.5px var(--font-code); color: var(--ink-2); }
+.params .p b { color: var(--ink); font-weight: 600; }
+.params .none { font: 12.5px var(--font-ui); color: var(--ink-3); direction: rtl; }
+.status { font-size: 13px; color: var(--ink-2); display: flex; align-items: center; gap: 7px; min-height: 20px; }
+.status .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--fwd); animation: pulse calc(1.1s * var(--spd)) ease-in-out infinite; flex: none; }
+.gots { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 12px; color: var(--ink-3); }
+.gots .chip { font: 12px var(--font-code); color: var(--ret); background: var(--ret-soft); padding: 1px 7px; border-radius: 99px; direction: ltr; }
+.win.top { border-color: var(--fwd); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fwd) 18%, transparent), var(--shadow); }
+.win.top .bar { background: var(--fwd-soft); }
+.win.returning { border-color: var(--ret); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ret) 22%, transparent), var(--shadow); }
+.win.returning .bar { background: var(--ret-soft); }
+.win.returning .status { color: var(--ret); font-weight: 700; }
+.win.err { border-color: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 20%, transparent), var(--shadow); }
+.win.err .bar { background: var(--bad-soft); }
+.win.err .status { color: var(--bad); font-weight: 700; }
+
+.win.enter { animation: winIn calc(.42s * var(--spd)) cubic-bezier(.2,.8,.25,1) both; }
+.win.closing { animation: winOut calc(.34s * var(--spd)) ease-in forwards; pointer-events: none; }
+.link.closing { animation: linkOut calc(.34s * var(--spd)) ease-in forwards; }
+/* קוד בתוך החלון */
+.codebox { direction: ltr; text-align: left; margin: 0 -12px; border-block: 1px solid var(--line); background: var(--code-bg);
+  max-height: 138px; overflow: auto; padding: 4px 0; font: 12px/18px var(--font-code); scroll-behavior: auto; }
+.codebox .cl { display: flex; min-width: max-content; height: 18px; white-space: pre; }
+.codebox .no { flex: none; width: 30px; text-align: end; padding-inline-end: 8px; color: var(--ink-3); user-select: none; }
+.codebox .tx { padding-inline-end: 12px; color: var(--ink); }
+.codebox .t-val { color: var(--fwd); font-weight: 700; background: color-mix(in srgb, var(--fwd) 14%, transparent); border-radius: 3px; padding: 0 2px; }
+.codebox .cl.ret .t-val { color: var(--ret); background: color-mix(in srgb, var(--ret) 16%, transparent); }
+.codebox .cl.wait { background: color-mix(in srgb, var(--fwd) 9%, transparent); box-shadow: inset 3px 0 0 color-mix(in srgb, var(--fwd) 45%, transparent); }
+.codebox .cl.cur { background: var(--hl-call); box-shadow: inset 3px 0 0 var(--fwd); }
+.codebox .cl.ret { background: var(--hl-ret); box-shadow: inset 3px 0 0 var(--ret); }
+.codebox .cl.errl { background: var(--hl-err); box-shadow: inset 3px 0 0 var(--bad); }
+.codebox .cl.cur .no, .codebox .cl.ret .no, .codebox .cl.errl .no { color: var(--ink); font-weight: 700; }
+@keyframes winIn { from { opacity: 0; transform: translateY(-14px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes winOut { 0% { opacity: 1; transform: none; max-height: 200px; } 60% { opacity: 0; transform: scale(.92); max-height: 200px; } 100% { opacity: 0; transform: scale(.92); max-height: 0; border-width: 0; margin: 0; } }
+@keyframes linkOut { from { opacity: 1; height: 50px; } to { opacity: 0; height: 0; } }
+@keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+
+/* חיצים בין חלונות */
+.link { direction: ltr; height: 50px; flex: none; display: flex; gap: 34px; align-items: stretch; overflow: hidden; }
+.arr { display: flex; align-items: center; gap: 7px; }
+.arr svg { width: 16px; height: 50px; flex: none; overflow: visible; }
+.arr .lab { font: 12.5px var(--font-code); font-weight: 600; white-space: nowrap; }
+.arr.down { color: var(--fwd); }
+.arr.down .shaft { stroke-dasharray: 40; stroke-dashoffset: 0; }
+.arr.down.enter .shaft { animation: draw calc(.42s * var(--spd)) ease-out both; }
+.arr.down.enter .head { animation: fade calc(.42s * var(--spd)) ease-out both; }
+.arr.up { color: var(--ink-3); visibility: hidden; } /* חץ חזור מוסתר עד שמתחיל תהליך החזרה */
+.arr.up .shaft { stroke-dasharray: 3 4; }
+.arr.up .lab { font-family: var(--font-ui); font-weight: 500; opacity: .85; }
+.arr.up.on { color: var(--ret); visibility: visible; }
+.arr.up.on .shaft { stroke-dasharray: 40; stroke-dashoffset: 0; animation: draw calc(.5s * var(--spd)) ease-out both; }
+.arr.up.on .head { animation: fade calc(.5s * var(--spd)) ease-out both; }
+.arr.up.on .lab { font-family: var(--font-code); font-weight: 700; opacity: 1; animation: fade calc(.5s * var(--spd)) ease-out both; }
+@keyframes draw { from { stroke-dashoffset: 40; } to { stroke-dashoffset: 0; } }
+@keyframes fade { 0%, 55% { opacity: 0; } 100% { opacity: 1; } }
+
+.note { direction: rtl; margin-top: 16px; padding: 10px 12px; border-radius: 8px; font-size: 14px; max-width: 460px; }
+.note.err { background: var(--bad-soft); color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent); font-weight: 600; }
+.note.done { background: color-mix(in srgb, var(--good) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--good) 40%, transparent); color: var(--ink); }
+.note.done b { color: var(--good); }
+.empty-state { direction: rtl; margin: auto; max-width: 360px; text-align: center; color: var(--ink-2); padding: 30px 8px; }
+.empty-state h3 { font-family: var(--font-head); font-size: 17px; margin: 0 0 6px; color: var(--ink); }
+.empty-state p { margin: 0; }
+.viz-scroll.is-empty { display: flex; }
+
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  .app { height: auto; grid-template-columns: minmax(0, 1fr); }
+  .editor-wrap { min-height: 300px; flex: none; }
+  .panel.viz { min-height: 440px; }
+  .viz-scroll { max-height: 70vh; }
+  .brand { flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .win.enter, .win.closing, .link.closing, .arr * { animation-duration: .01s !important; }
+  .viz-scroll { scroll-behavior: auto; }
+  .status .pulse { animation: none; }
+}
+
+</style>
+
+<div class="app">
+  <section class="panel" aria-label="עורך קוד C#">
+    <div class="toolbar">
+      <div class="brand">סימולטור רקורסיה · C#</div>
+      <select class="sel" id="ex" aria-label="בחירת דוגמה"></select>
+      <div class="ctrls">
+        <button class="btn" id="back" type="button" aria-label="צעד אחורה">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="2.2" height="11" rx="1"/><path d="M13.5 2.5v11L5.5 8z"/></svg><span>אחורה</span>
+        </button>
+        <button class="btn run" id="run" type="button" aria-label="הרצה"></button>
+        <button class="btn" id="fwd" type="button" aria-label="צעד קדימה">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 2.5v11L10.5 8z"/><rect x="11.8" y="2.5" width="2.2" height="11" rx="1"/></svg><span>קדימה</span>
+        </button>
+      </div>
+      <label class="speed" for="spd">מהירות
+        <input type="range" id="spd" min="0" max="8" step="1" value="3">
+        <output id="spdOut" for="spd">×0.5</output>
+      </label>
+      <div class="progress" aria-live="polite">
+        <span class="what" id="what"></span>
+        <div class="bar" role="progressbar" aria-label="התקדמות הריצה"><i id="pbar"></i></div>
+        <b id="stepNo">0/0</b>
+      </div>
+    </div>
+    <div class="editor-wrap">
+      <div class="gutter" aria-hidden="true"><div class="gutter-in" id="gutIn"></div></div>
+      <div class="code-area">
+        <div class="hl-clip" aria-hidden="true"><pre class="hl" id="hl"></pre></div>
+        <textarea class="ta" id="ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="קוד C#"></textarea>
+      </div>
+    </div>
+    <div class="console">
+      <h3>פלט</h3>
+      <pre id="consoleOut" class="empty" aria-live="polite"></pre>
+    </div>
+  </section>
+
+  <section class="panel viz" aria-label="אנימציית הרקורסיה">
+    <div class="viz-head">
+      <h2>מחסנית הקריאות</h2>
+      <div class="legend">
+        <span class="f"><svg viewBox="0 0 12 18" aria-hidden="true"><path d="M6 1v14M2 11l4 5 4-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>הלוך: קריאה</span>
+        <span class="r"><svg viewBox="0 0 12 18" aria-hidden="true"><path d="M6 17V3M2 7l4-5 4 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>חזור: ערך מוחזר</span>
+      </div>
+    </div>
+    <div class="viz-scroll is-empty" id="scroller">
+      <div class="empty-state" id="empty"><h3>לחצו על הרץ</h3><p></p></div>
+      <div class="stack" id="stack"></div>
+      <div id="note"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ===================================================================
+   מפרש לתת-קבוצה של C#  —  מפיק רשימת אירועים: call / return / print / error
+   =================================================================== */
+class CsError extends Error {
+  constructor(msg, line) { super(msg); this.line = line || 0; this.name = 'CsError'; }
+}
+class D { constructor(v) { this.v = v; } }          // double
+class Ch { constructor(c) { this.c = c; } }         // char
+
+const NON_TYPE_START = new Set(['if','else','while','for','foreach','do','return','break','continue','new','this','true','false','null','switch','case','default','throw','try','catch','finally','using','lock','goto','in','is','as','typeof','sizeof','checked','unchecked','out','ref','const','namespace','class','struct','interface']);
+const MODIFIERS = new Set(['public','private','protected','internal','static','readonly','const','override','virtual','abstract','sealed','async','unsafe','partial','extern']);
+const CAST_TYPES = new Set(['int','long','double','float','decimal','char','byte','short','uint','ulong','string','bool','sbyte','ushort']);
+const ASSIGN_OPS = new Set(['=','+=','-=','*=','/=','%=','&=','|=','^=']);
+const BIN_PREC = { '??':1,'||':2,'&&':3,'|':4,'^':5,'&':6,'==':7,'!=':7,'<':8,'>':8,'<=':8,'>=':8,'+':9,'-':9,'*':10,'/':10,'%':10 };
+
+/* ------------------------------ lexer ------------------------------ */
+function lex(src, startLine) {
+  const toks = []; let i = 0, line = startLine || 1; const n = src.length;
+  const fail = (m) => { throw new CsError(m, line); };
+  const OPS2 = ['++','--','+=','-=','*=','/=','%=','&=','|=','^=','==','!=','<=','>=','&&','||','=>','??'];
+  const esc = (ch) => ({ n:'\n', t:'\t', r:'\r', '0':'\0', '\\':'\\', '"':'"', "'":"'" }[ch] ?? ch);
+
+  while (i < n) {
+    const c = src[i];
+    if (c === '\n') { line++; i++; continue; }
+    if (c === ' ' || c === '\t' || c === '\r' || c === '﻿') { i++; continue; }
+    if (c === '/' && src[i+1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+    if (c === '/' && src[i+1] === '*') {
+      i += 2;
+      while (i < n && !(src[i] === '*' && src[i+1] === '/')) { if (src[i] === '\n') line++; i++; }
+      i += 2; continue;
+    }
+    if (/[A-Za-z_]/.test(c)) {
+      let j = i; while (j < n && /[A-Za-z0-9_]/.test(src[j])) j++;
+      toks.push({ t:'id', v:src.slice(i,j), line }); i = j; continue;
+    }
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i+1] || ''))) {
+      let j = i;
+      if (c === '0' && (src[i+1] === 'x' || src[i+1] === 'X')) {
+        j = i + 2; while (/[0-9a-fA-F]/.test(src[j] || '')) j++;
+        const v = parseInt(src.slice(i+2, j), 16);
+        toks.push({ t:'num', v, kind: v > 2147483647 ? 'long' : 'int', line }); i = j; continue;
+      }
+      while (/[0-9_]/.test(src[j] || '')) j++;
+      let isD = false;
+      if (src[j] === '.' && /[0-9]/.test(src[j+1] || '')) { isD = true; j++; while (/[0-9_]/.test(src[j] || '')) j++; }
+      if (/[eE]/.test(src[j] || '') && /[0-9+\-]/.test(src[j+1] || '')) { isD = true; j++; if (/[+\-]/.test(src[j])) j++; while (/[0-9]/.test(src[j] || '')) j++; }
+      const txt = src.slice(i, j).replace(/_/g, '');
+      let kind = isD ? 'double' : 'int'; const suf = src[j] || '';
+      if (/[lL]/.test(suf) && !isD) { kind = 'long'; j++; }
+      else if (/[dDfFmM]/.test(suf)) { kind = 'double'; j++; }
+      let v;
+      if (kind === 'double') v = Number(txt);
+      else { const big = BigInt(txt); if (kind === 'int' && big > 2147483647n) kind = 'long'; v = kind === 'long' ? big : Number(big); }
+      toks.push({ t:'num', v, kind, line }); i = j; continue;
+    }
+    if (c === '"' || (c === '@' && src[i+1] === '"') || (c === '$' && src[i+1] === '"') || ((c === '$' || c === '@') && (src[i+1] === '$' || src[i+1] === '@') && src[i+2] === '"')) {
+      let interp = false, verb = false;
+      while (src[i] !== '"') { if (src[i] === '$') interp = true; else verb = true; i++; }
+      i++;
+      const startL = line; let parts = [], cur = '';
+      for (;;) {
+        if (i >= n) fail('מחרוזת לא נסגרה');
+        const ch = src[i];
+        if (ch === '"') {
+          if (verb && src[i+1] === '"') { cur += '"'; i += 2; continue; }
+          i++; break;
+        }
+        if (ch === '\n') { if (!verb) fail('מחרוזת לא נסגרה בסוף השורה'); line++; cur += ch; i++; continue; }
+        if (ch === '\\' && !verb) { cur += esc(src[i+1]); i += 2; continue; }
+        if (interp && ch === '{') {
+          if (src[i+1] === '{') { cur += '{'; i += 2; continue; }
+          let j = i + 1, depth = 1;
+          while (j < n && depth > 0) {
+            if (src[j] === '"') { j++; while (j < n && src[j] !== '"') j++; }
+            else if (src[j] === '{') depth++;
+            else if (src[j] === '}') depth--;
+            if (depth > 0) j++;
+          }
+          let body = src.slice(i + 1, j), fmtSpec = null, d = 0;
+          for (let k = 0; k < body.length; k++) {
+            const bc = body[k];
+            if (bc === '(' || bc === '[') d++; else if (bc === ')' || bc === ']') d--;
+            else if (bc === ':' && d === 0) { fmtSpec = body.slice(k + 1); body = body.slice(0, k); break; }
+          }
+          if (cur) parts.push(cur); cur = '';
+          parts.push({ expr: body, fmt: fmtSpec, line });
+          i = j + 1; continue;
+        }
+        if (interp && ch === '}' && src[i+1] === '}') { cur += '}'; i += 2; continue; }
+        cur += ch; i++;
+      }
+      if (interp) { if (cur) parts.push(cur); toks.push({ t:'istr', parts, line: startL }); }
+      else toks.push({ t:'str', v:cur, line: startL });
+      continue;
+    }
+    if (c === "'") {
+      let ch = src[i+1];
+      if (ch === '\\') { ch = esc(src[i+2]); i += 4; } else i += 3;
+      if (src[i-1] !== "'") fail("תו (char) לא תקין");
+      toks.push({ t:'chr', v:ch, line }); continue;
+    }
+    const two = src.substr(i, 2);
+    if (OPS2.includes(two)) { toks.push({ t:'op', v:two, line }); i += 2; continue; }
+    if ('+-*/%<>=!&|^~?:;,.()[]{}'.includes(c)) { toks.push({ t:'op', v:c, line }); i++; continue; }
+    fail(`תו לא מוכר: '${c}'`);
+  }
+  toks.push({ t:'eof', v:'סוף הקובץ', line });
+  return toks;
+}
+
+/* ------------------------------ parser ------------------------------ */
+class Parser {
+  constructor(toks) { this.t = toks; this.p = 0; }
+  get cur() { return this.t[this.p]; }
+  peek(k = 1) { return this.t[Math.min(this.p + k, this.t.length - 1)]; }
+  is(v) { const c = this.cur; return c.v === v && (c.t === 'op' || c.t === 'id'); }
+  accept(v) { if (this.is(v)) { this.p++; return true; } return false; }
+  fail(msg) { return new CsError(msg, this.cur.line); }
+  expect(v) {
+    if (!this.accept(v)) throw this.fail(`ציפיתי ל־'${v}' אבל נמצא '${this.cur.t === 'eof' ? 'סוף הקובץ' : (this.cur.v ?? this.cur.t)}'`);
+  }
+  ident() {
+    const c = this.cur;
+    if (c.t !== 'id') throw this.fail(`ציפיתי לשם אבל נמצא '${c.v ?? c.t}'`);
+    this.p++; return c.v;
+  }
+  atEof() { return this.cur.t === 'eof'; }
+
+  program() {
+    const prog = { methods: [], fields: [], top: [], classes: [] };
+    while (!this.atEof()) this.topItem(prog);
+    return prog;
+  }
+  skipModifiers() { const s = new Set(); while (this.cur.t === 'id' && MODIFIERS.has(this.cur.v)) { s.add(this.cur.v); this.p++; } return s; }
+  isTypeDeclStart() {
+    const save = this.p; this.skipModifiers();
+    const r = this.is('class') || this.is('struct') || this.is('interface');
+    this.p = save; return r;
+  }
+  isMethodDeclStart() {
+    const save = this.p;
+    try {
+      this.skipModifiers();
+      if (this.cur.t !== 'id' || NON_TYPE_START.has(this.cur.v)) return false;
+      this.parseType();
+      return this.cur.t === 'id' && !NON_TYPE_START.has(this.cur.v) && this.peek().v === '(' && this.peek().t === 'op';
+    } catch (e) { return false; }
+    finally { this.p = save; }
+  }
+  topItem(prog) {
+    if (this.is('using')) { while (!this.is(';') && !this.atEof()) this.p++; this.expect(';'); return; }
+    if (this.is('namespace')) {
+      this.p++; this.ident(); while (this.accept('.')) this.ident();
+      if (this.accept(';')) return;
+      this.expect('{'); while (!this.is('}') && !this.atEof()) this.topItem(prog); this.expect('}'); return;
+    }
+    if (this.isTypeDeclStart()) { this.classDecl(prog); return; }
+    if (this.isMethodDeclStart()) { prog.methods.push(this.methodDecl()); return; }
+    prog.top.push(this.statement());
+  }
+  classDecl(prog) {
+    this.skipModifiers(); this.p++;   // class/struct/interface
+    const name = this.ident(); prog.classes.push(name);
+    if (this.accept(':')) { this.parseType(); while (this.accept(',')) this.parseType(); }
+    this.expect('{');
+    while (!this.is('}')) {
+      if (this.atEof()) throw this.fail("חסר '}' לסגירת המחלקה");
+      this.member(prog);
+    }
+    this.expect('}');
+  }
+  member(prog) {
+    if (this.isTypeDeclStart()) { this.classDecl(prog); return; }
+    if (this.isMethodDeclStart()) { prog.methods.push(this.methodDecl()); return; }
+    const mods = this.skipModifiers();
+    const type = this.parseType(); const nameTok = this.cur; const name = this.ident();
+    for (;;) {
+      let init = null;
+      if (this.accept('=')) init = this.is('{') ? this.arrInit() : this.expr();
+      prog.fields.push({ name, type, init, line: nameTok.line });
+      if (this.accept(',')) { this.ident(); continue; }
+      break;
+    }
+    this.expect(';');
+  }
+  methodDecl() {
+    this.skipModifiers();
+    const ret = this.parseType(); const nameTok = this.cur; const name = this.ident();
+    this.expect('(');
+    const params = [];
+    if (!this.is(')')) {
+      do {
+        while (this.is('ref') || this.is('out') || this.is('params') || this.is('this')) this.p++;
+        const type = this.parseType(); const pname = this.ident();
+        let def = null; if (this.accept('=')) def = this.expr();
+        params.push({ type, name: pname, def });
+      } while (this.accept(','));
+    }
+    this.expect(')');
+    let body, endLine;
+    if (this.accept('=>')) {
+      const e = this.expr(); endLine = this.cur.line; this.expect(';');
+      body = [{ k: 'ret', e, line: nameTok.line }];
+    } else { const b = this.block(); body = b.body; endLine = b.endLine; }
+    return { name, ret, params, body, line: nameTok.line, endLine };
+  }
+  parseType() {
+    const tok = this.cur;
+    if (tok.t !== 'id') throw this.fail('ציפיתי לשם של סוג');
+    let name = tok.v; this.p++;
+    while (this.is('.') && this.peek().t === 'id') { this.p++; name = this.cur.v; this.p++; }
+    let args = null;
+    if (this.is('<')) {
+      this.p++; args = [];
+      do { args.push(this.parseType()); } while (this.accept(','));
+      this.expect('>');
+    }
+    let dims = 0;
+    while (this.is('[') && this.peek().v === ']' && this.peek().t === 'op') { this.p += 2; dims++; }
+    if (this.is('?') && (this.peek().t === 'id' || this.peek().v === ')') && !CAST_TYPES.has(name) === false) { /* nullable – ignore */ }
+    return { name, args, dims };
+  }
+  block() {
+    const line = this.cur.line; this.expect('{');
+    const body = [];
+    while (!this.is('}')) {
+      if (this.atEof()) throw this.fail("חסר '}' לסגירת הבלוק");
+      body.push(this.statement());
+    }
+    const endLine = this.cur.line; this.p++;
+    return { k: 'block', body, line, endLine };
+  }
+  tryDecl(forEach) {
+    const save = this.p, t = this.cur;
+    if (t.t !== 'id' || NON_TYPE_START.has(t.v)) return null;
+    let type;
+    try { type = this.parseType(); } catch (e) { this.p = save; return null; }
+    if (this.cur.t === 'id' && !NON_TYPE_START.has(this.cur.v)) {
+      const nx = this.peek();
+      if ((nx.t === 'op' && (nx.v === '=' || nx.v === ';' || nx.v === ',')) || (forEach && nx.t === 'id' && nx.v === 'in')) {
+        return type;
+      }
+    }
+    this.p = save; return null;
+  }
+  declRest(type, line) {
+    const vars = [];
+    do {
+      const name = this.ident(); let init = null;
+      if (this.accept('=')) init = this.is('{') ? this.arrInit() : this.expr();
+      vars.push({ name, init });
+    } while (this.accept(','));
+    return { k: 'decl', type, vars, line };
+  }
+  statement() {
+    const t = this.cur, line = t.line;
+    if (t.t === 'op') {
+      if (t.v === '{') return this.block();
+      if (t.v === ';') { this.p++; return { k: 'empty', line }; }
+    }
+    if (t.t === 'id') {
+      switch (t.v) {
+        case 'if': {
+          this.p++; this.expect('('); const c = this.expr(); this.expect(')');
+          const a = this.statement(); let b = null;
+          if (this.accept('else')) b = this.statement();
+          return { k: 'if', c, a, b, line };
+        }
+        case 'while': { this.p++; this.expect('('); const c = this.expr(); this.expect(')'); return { k: 'while', c, body: this.statement(), line }; }
+        case 'do': {
+          this.p++; const body = this.statement(); this.expect('while'); this.expect('(');
+          const c = this.expr(); this.expect(')'); this.expect(';'); return { k: 'do', c, body, line };
+        }
+        case 'for': {
+          this.p++; this.expect('(');
+          let init = null;
+          if (!this.is(';')) {
+            const ty = this.tryDecl(false);
+            if (ty) init = this.declRest(ty, line);
+            else { const list = [this.expr()]; while (this.accept(',')) list.push(this.expr()); init = { k: 'exprs', list, line }; }
+          }
+          this.expect(';');
+          const c = this.is(';') ? null : this.expr(); this.expect(';');
+          const upd = [];
+          if (!this.is(')')) { upd.push(this.expr()); while (this.accept(',')) upd.push(this.expr()); }
+          this.expect(')');
+          return { k: 'for', init, c, upd, body: this.statement(), line };
+        }
+        case 'foreach': {
+          this.p++; this.expect('('); const type = this.parseType(); const name = this.ident();
+          this.expect('in'); const coll = this.expr(); this.expect(')');
+          return { k: 'foreach', type, name, coll, body: this.statement(), line };
+        }
+        case 'return': {
+          this.p++; let e = null; if (!this.is(';')) e = this.expr(); this.expect(';');
+          return { k: 'ret', e, line };
+        }
+        case 'break': this.p++; this.expect(';'); return { k: 'break', line };
+        case 'continue': this.p++; this.expect(';'); return { k: 'continue', line };
+        case 'throw': { this.p++; const e = this.expr(); this.expect(';'); return { k: 'throw', e, line }; }
+        case 'switch': throw this.fail('הפקודה switch עדיין לא נתמכת בסימולטור. אפשר להשתמש ב־if / else');
+        case 'try': throw this.fail('הפקודה try/catch עדיין לא נתמכת בסימולטור');
+        case 'const': this.p++; break;
+      }
+      const ty = this.tryDecl(false);
+      if (ty) { const d = this.declRest(ty, line); this.expect(';'); return d; }
+    }
+    const e = this.expr(); this.expect(';');
+    return { k: 'expr', e, line };
+  }
+
+  expr() { return this.assignment(); }
+  isLvalue(e) { return e.k === 'id' || e.k === 'index' || e.k === 'member'; }
+  assignment() {
+    const left = this.ternary(); const t = this.cur;
+    if (t.t === 'op' && ASSIGN_OPS.has(t.v)) {
+      if (!this.isLvalue(left)) throw this.fail('צד שמאל של השמה חייב להיות משתנה, תא במערך או שדה');
+      this.p++; const value = this.assignment();
+      return { k: 'assign', op: t.v, target: left, value, line: t.line };
+    }
+    return left;
+  }
+  ternary() {
+    const c = this.binary(1);
+    if (this.is('?')) {
+      const line = this.cur.line; this.p++;
+      const a = this.assignment(); this.expect(':'); const b = this.assignment();
+      return { k: 'cond', c, a, b, line };
+    }
+    return c;
+  }
+  binary(min) {
+    let left = this.unary();
+    for (;;) {
+      const t = this.cur; if (t.t !== 'op') break;
+      const pr = BIN_PREC[t.v]; if (!pr || pr < min) break;
+      this.p++;
+      const right = this.binary(t.v === '??' ? pr : pr + 1);
+      left = { k: 'bin', op: t.v, l: left, r: right, line: t.line };
+    }
+    return left;
+  }
+  unary() {
+    const t = this.cur;
+    if (t.t === 'op') {
+      if (t.v === '!' || t.v === '-' || t.v === '+' || t.v === '~') { this.p++; return { k: 'un', op: t.v, e: this.unary(), line: t.line }; }
+      if (t.v === '++' || t.v === '--') {
+        this.p++; const target = this.unary();
+        if (!this.isLvalue(target)) throw this.fail('ניתן להשתמש ב־++ / -- רק על משתנה');
+        return { k: 'incdec', op: t.v, prefix: true, target, line: t.line };
+      }
+      if (t.v === '(' && this.peek().t === 'id' && CAST_TYPES.has(this.peek().v) && this.peek(2).v === ')' && this.peek(2).t === 'op') {
+        this.p++; const type = this.parseType(); this.expect(')');
+        return { k: 'cast', type, e: this.unary(), line: t.line };
+      }
+    }
+    return this.postfix();
+  }
+  postfix() {
+    let e = this.primary();
+    for (;;) {
+      const t = this.cur; if (t.t !== 'op') break;
+      if (t.v === '.') {
+        this.p++; const nt = this.cur; const name = this.ident();
+        if (this.is('(')) e = { k: 'mcall', obj: e, name, args: this.args(), line: nt.line };
+        else e = { k: 'member', obj: e, name, line: nt.line };
+        continue;
+      }
+      if (t.v === '[') {
+        this.p++; const idx = this.expr(); this.expect(']');
+        e = { k: 'index', obj: e, idx, line: t.line }; continue;
+      }
+      if (t.v === '++' || t.v === '--') {
+        if (!this.isLvalue(e)) break;
+        this.p++; e = { k: 'incdec', op: t.v, prefix: false, target: e, line: t.line }; continue;
+      }
+      break;
+    }
+    return e;
+  }
+  args() {
+    this.expect('('); const a = [];
+    if (!this.is(')')) {
+      do {
+        if (this.is('out') || this.is('ref')) throw this.fail('פרמטרים מסוג ref / out עדיין לא נתמכים בסימולטור');
+        a.push(this.expr());
+      } while (this.accept(','));
+    }
+    this.expect(')'); return a;
+  }
+  arrInit() {
+    this.expect('{'); const items = [];
+    while (!this.is('}')) {
+      items.push(this.is('{') ? { k: 'arrlit', items: this.arrInit(), elem: null, line: this.cur.line } : this.expr());
+      if (!this.accept(',')) break;
+    }
+    this.expect('}'); return items;
+  }
+  primary() {
+    const t = this.cur, line = t.line;
+    switch (t.t) {
+      case 'num': this.p++; return { k: 'lit', val: t.kind === 'double' ? new D(t.v) : t.v, line };
+      case 'str': this.p++; return { k: 'lit', val: t.v, line };
+      case 'chr': this.p++; return { k: 'lit', val: new Ch(t.v), line };
+      case 'istr': {
+        this.p++;
+        const parts = t.parts.map(pt => {
+          if (typeof pt === 'string') return pt;
+          const sub = new Parser(lex(pt.expr, pt.line)); const e = sub.expr();
+          if (!sub.atEof()) throw new CsError('ביטוי לא תקין בתוך מחרוזת מושרת', pt.line);
+          return { e, fmt: pt.fmt };
+        });
+        return { k: 'istr', parts, line };
+      }
+      case 'op':
+        if (t.v === '(') { this.p++; const e = this.expr(); this.expect(')'); return e; }
+        break;
+      case 'id': {
+        if (t.v === 'true') { this.p++; return { k: 'lit', val: true, line }; }
+        if (t.v === 'false') { this.p++; return { k: 'lit', val: false, line }; }
+        if (t.v === 'null') { this.p++; return { k: 'lit', val: null, line }; }
+        if (t.v === 'new') return this.newExpr();
+        if (this.peek().v === '(' && this.peek().t === 'op' && !NON_TYPE_START.has(t.v)) {
+          this.p++; return { k: 'call', name: t.v, args: this.args(), line };
+        }
+        if (NON_TYPE_START.has(t.v) && t.v !== 'in') break;
+        this.p++; return { k: 'id', name: t.v, line };
+      }
+    }
+    throw this.fail(`לא הצלחתי להבין את '${t.t === 'eof' ? 'סוף הקובץ' : (t.v ?? t.t)}' כאן`);
+  }
+  newExpr() {
+    const line = this.cur.line; this.p++;
+    if (this.is('[')) { this.p++; this.expect(']'); return { k: 'arrlit', items: this.arrInit(), elem: null, line }; }
+    const type = this.parseType();
+    if (this.is('[')) {
+      this.p++; const size = this.expr(); this.expect(']');
+      return { k: 'newarr', elem: type, size, line };
+    }
+    if (type.dims > 0) {
+      return { k: 'arrlit', items: this.arrInit(), elem: { ...type, dims: type.dims - 1 }, line };
+    }
+    const args = this.is('(') ? this.args() : [];
+    let init = null; if (this.is('{')) init = this.arrInit();
+    return { k: 'new', type, args, init, line };
+  }
+}
+
+function parse(src) {
+  const P = new Parser(lex(src));
+  const prog = P.program();
+  prog.lastLine = src.split('\n').length;
+  return prog;
+}
+
+/* ------------------------------ values ------------------------------ */
+const code = (c) => c.c.charCodeAt(0);
+const isNum = (x) => typeof x === 'number' || typeof x === 'bigint' || x instanceof D || x instanceof Ch;
+function num(x) { return x instanceof D ? x.v : x instanceof Ch ? code(x) : typeof x === 'bigint' ? Number(x) : x; }
+function toBig(x) { return typeof x === 'bigint' ? x : BigInt(Math.trunc(num(x))); }
+function fmtD(v) {
+  if (Number.isNaN(v)) return 'NaN';
+  if (v === Infinity) return 'Infinity'; if (v === -Infinity) return '-Infinity';
+  return String(v);
+}
+const NET = { int:'System.Int32', long:'System.Int64', double:'System.Double', string:'System.String', char:'System.Char', bool:'System.Boolean', float:'System.Single', decimal:'System.Decimal', byte:'System.Byte', short:'System.Int16', object:'System.Object' };
+const netName = (t) => t ? (NET[t.name] || t.name) + '[]'.repeat(t.dims || 0) : 'System.Object';
+function fmt(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'boolean') return v ? 'True' : 'False';
+  if (v instanceof D) return fmtD(v.v);
+  if (v instanceof Ch) return v.c;
+  if (typeof v === 'bigint' || typeof v === 'number') return String(v);
+  if (Array.isArray(v)) return netName({ ...(v.et || { name: 'object' }), dims: (v.et ? v.et.dims : 0) + 1 });
+  if (v.kind === 'list') return 'System.Collections.Generic.List`1[' + netName(v.et) + ']';
+  if (v.kind === 'dict') return 'System.Collections.Generic.Dictionary`2[' + netName(v.kt) + ',' + netName(v.vt) + ']';
+  if (v.kind === 'exc') return v.type + ': ' + v.msg;
+  return String(v);
+}
+function show(v, depth = 0) {
+  if (v === undefined) return 'void';
+  if (v === null) return 'null';
+  if (typeof v === 'string') { const s = v.length > 22 ? v.slice(0, 21) + '…' : v; return '"' + s.replace(/\n/g, '\\n') + '"'; }
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (v instanceof D) return Number.isInteger(v.v) && Math.abs(v.v) < 1e15 ? v.v.toFixed(1) : fmtD(v.v);
+  if (v instanceof Ch) return "'" + (v.c === '\n' ? '\\n' : v.c) + "'";
+  if (typeof v === 'bigint' || typeof v === 'number') return String(v);
+  const list = Array.isArray(v) ? v : v.kind === 'list' ? v.a : null;
+  if (list) {
+    if (depth > 1) return '[…]';
+    const items = list.slice(0, 8).map(x => show(x, depth + 1));
+    return '[' + items.join(', ') + (list.length > 8 ? ', …' : '') + ']';
+  }
+  if (v.kind === 'dict') {
+    const ents = [...v.m.values()].slice(0, 5).map(e => show(e.k, 2) + ': ' + show(e.v, 2));
+    return '{' + ents.join(', ') + (v.m.size > 5 ? ', …' : '') + '}';
+  }
+  return fmt(v);
+}
+function keyOf(v) {
+  if (typeof v === 'string') return 's' + v;
+  if (v instanceof Ch) return 'c' + v.c;
+  if (isNum(v)) return 'n' + num(v);
+  return 'o' + String(v);
+}
+function equals(a, b) {
+  if (a === null || b === null || a === undefined || b === undefined) return a === b;
+  if (isNum(a) && isNum(b)) return num(a) === num(b);
+  return a === b;
+}
+function fmtSpec(v, spec) {
+  if (spec == null) return fmt(v);
+  const m = /^([FfNnDd])(\d*)$/.exec(spec.trim());
+  if (m && isNum(v)) {
+    const k = m[1].toUpperCase(), d = m[2] === '' ? 2 : parseInt(m[2], 10);
+    if (k === 'F') return num(v).toFixed(d);
+    if (k === 'N') return num(v).toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (k === 'D') return String(Math.trunc(num(v))).padStart(d, '0');
+  }
+  return fmt(v);
+}
+function formatString(s, args) {
+  return s.replace(/\{(\d+)(?::([^}]*))?\}/g, (m, i, f) => (+i < args.length ? fmtSpec(args[+i], f) : m));
+}
+function defaultFor(t) {
+  if (!t || t.dims > 0) return null;
+  switch (t.name) {
+    case 'int': case 'short': case 'byte': case 'sbyte': case 'uint': case 'ushort': return 0;
+    case 'long': case 'ulong': return 0n;
+    case 'double': case 'float': case 'decimal': return new D(0);
+    case 'bool': return false;
+    case 'char': return new Ch('\0');
+    default: return null;
+  }
+}
+const BRK = { t: 'brk' }, CNT = { t: 'cnt' };
+
+/* --------------------------- interpreter --------------------------- */
+class Interp {
+  constructor(prog, o = {}) {
+    this.prog = prog; this.events = []; this.nextId = 1; this.depth = 0;
+    this.maxDepth = o.maxDepth || 60; this.maxEvents = o.maxEvents || 4000;
+    this.ops = 0; this.opLimit = o.opLimit || 3000000;
+    this.methods = new Map();
+    for (const m of prog.methods) { if (!this.methods.has(m.name)) this.methods.set(m.name, []); this.methods.get(m.name).push(m); }
+    this.globals = new Map(); this.classNames = new Set(prog.classes);
+    this.out = '';
+  }
+  emit(ev) {
+    if (this.events.length >= this.maxEvents) throw new CsError(`הסימולציה נעצרה אחרי ${this.maxEvents} צעדים. כדאי להקטין את הקלט כדי לראות את כל הריצה`, ev.line);
+    this.events.push(ev);
+  }
+  execute() {
+    const p = this.prog;
+    try {
+      const main = (this.methods.get('Main') || [])[0];
+      const dummy = { id: 0, scopes: [new Map()], m: null };
+      for (const f of p.fields) {
+        const v = f.init ? this.evalInit(f.init, f.type, dummy) : defaultFor(f.type);
+        this.globals.set(f.name, { v: this.coerce(f.type, v, f.line), type: f.type });
+      }
+      if (main) this.invoke(main, main.params.length ? [Object.assign([], { et: { name: 'string', dims: 0 } })] : [], main.line, null);
+      else if (p.top.length) {
+        const pseudo = { name: 'Main', ret: { name: 'void', dims: 0 }, params: [], body: p.top, line: p.top[0].line, endLine: p.lastLine };
+        this.invoke(pseudo, [], pseudo.line, null);
+      } else throw new CsError('לא נמצאה נקודת כניסה: צריך פונקציית Main או פקודות ברמה העליונה', 1);
+    } catch (e) {
+      if (e instanceof CsError) this.events.push({ type: 'error', msg: e.message, line: e.line || 0 });
+      else if (e instanceof RangeError) this.events.push({ type: 'error', msg: 'StackOverflowException — עומק הקריאות גדול מדי', line: 0 });
+      else throw e;
+    }
+    return { events: this.events };
+  }
+  invoke(m, args, callLine, parent) {
+    if (this.depth >= this.maxDepth) throw new CsError(`StackOverflowException — הקריאות המקוננות עברו את ${this.maxDepth}. כנראה חסר תנאי עצירה`, callLine);
+    const id = this.nextId++;
+    const frame = { id, scopes: [new Map()], m };
+    const params = [];
+    m.params.forEach((pr, i) => {
+      let v = i < args.length ? args[i] : (pr.def ? this.eval(pr.def, frame) : undefined);
+      v = this.coerce(pr.type, v, callLine);
+      frame.scopes[0].set(pr.name, { v, type: pr.type });
+      params.push({ name: pr.name, text: show(v) });
+    });
+    this.depth++;
+    const sig = m.name + '(' + params.map(x => x.text).join(', ') + ')';
+    this.emit({ type: 'call', id, parent: parent ? parent.id : 0, name: m.name, sig, params, line: callLine, declLine: m.line, endLine: m.endLine, depth: this.depth });
+    let ret, retLine = m.endLine;
+    const r = this.execList(m.body, frame);
+    if (r && r.t === 'ret') { ret = r.v; retLine = r.line; }
+    const isVoid = m.ret.name === 'void';
+    if (!isVoid && ret !== undefined) ret = this.coerce(m.ret, ret, retLine);
+    this.emit({ type: 'return', id, hasValue: !isVoid && ret !== undefined, value: isVoid || ret === undefined ? '' : show(ret), line: retLine });
+    this.depth--;
+    return ret;
+  }
+  tick(line) { if (++this.ops > this.opLimit) throw new CsError('הריצה ארוכה מדי. ייתכן שיש לולאה אינסופית', line); }
+  execList(list, f) {
+    for (const s of list) { const r = this.exec(s, f); if (r) return r; }
+  }
+  execScoped(s, f) {
+    if (s.k === 'block') {
+      f.scopes.push(new Map());
+      try { return this.execList(s.body, f); } finally { f.scopes.pop(); }
+    }
+    f.scopes.push(new Map());
+    try { return this.exec(s, f); } finally { f.scopes.pop(); }
+  }
+  cond(e, f) {
+    const v = this.eval(e, f);
+    if (typeof v !== 'boolean') throw new CsError('התנאי חייב להיות מסוג bool', e.line);
+    return v;
+  }
+  declare(f, name, type, v, line) {
+    const sc = f.scopes[f.scopes.length - 1];
+    for (const s of f.scopes) if (s.has(name)) throw new CsError(`המשתנה '${name}' כבר הוגדר בתחום הזה`, line);
+    sc.set(name, { v, type });
+  }
+  exec(s, f) {
+    this.tick(s.line);
+    switch (s.k) {
+      case 'block': return this.execScoped(s, f);
+      case 'empty': return;
+      case 'decl':
+        for (const d of s.vars) {
+          let v = d.init ? this.evalInit(d.init, s.type, f) : defaultFor(s.type);
+          v = this.coerce(s.type, v, s.line);
+          this.declare(f, d.name, s.type, v, s.line);
+        }
+        return;
+      case 'expr': this.eval(s.e, f); return;
+      case 'if':
+        if (this.cond(s.c, f)) return this.execScoped(s.a, f);
+        if (s.b) return this.execScoped(s.b, f);
+        return;
+      case 'while':
+        while (this.cond(s.c, f)) {
+          this.tick(s.line);
+          const r = this.execScoped(s.body, f);
+          if (r === BRK) break; if (r === CNT) continue; if (r) return r;
+        }
+        return;
+      case 'do':
+        do {
+          this.tick(s.line);
+          const r = this.execScoped(s.body, f);
+          if (r === BRK) break; if (r === CNT) continue; if (r) return r;
+        } while (this.cond(s.c, f));
+        return;
+      case 'for': {
+        f.scopes.push(new Map());
+        try {
+          if (s.init) { if (s.init.k === 'decl') this.exec(s.init, f); else s.init.list.forEach(e => this.eval(e, f)); }
+          while (s.c ? this.cond(s.c, f) : true) {
+            this.tick(s.line);
+            const r = this.execScoped(s.body, f);
+            if (r === BRK) break;
+            if (r && r !== CNT) return r;
+            s.upd.forEach(e => this.eval(e, f));
+          }
+        } finally { f.scopes.pop(); }
+        return;
+      }
+      case 'foreach': {
+        const coll = this.eval(s.coll, f);
+        let items;
+        if (Array.isArray(coll)) items = coll.slice();
+        else if (typeof coll === 'string') items = [...coll].map(c => new Ch(c));
+        else if (coll && coll.kind === 'list') items = coll.a.slice();
+        else if (coll && coll.kind === 'dict') items = [...coll.m.values()].map(e => e.k);
+        else throw new CsError('foreach דורש מערך, רשימה או מחרוזת', s.line);
+        for (const it of items) {
+          this.tick(s.line);
+          f.scopes.push(new Map());
+          try {
+            f.scopes[f.scopes.length - 1].set(s.name, { v: this.coerce(s.type, it, s.line), type: s.type });
+            const r = this.execScoped(s.body, f);
+            if (r === BRK) break; if (r === CNT) continue; if (r) return r;
+          } finally { f.scopes.pop(); }
+        }
+        return;
+      }
+      case 'ret': return { t: 'ret', v: s.e ? this.eval(s.e, f) : undefined, line: s.line };
+      case 'break': return BRK;
+      case 'continue': return CNT;
+      case 'throw': {
+        const v = this.eval(s.e, f);
+        if (v && v.kind === 'exc') throw new CsError(`${v.type}${v.msg ? ' — ' + v.msg : ''}`, s.line);
+        throw new CsError('אפשר לזרוק רק חריגה (Exception)', s.line);
+      }
+    }
+    throw new CsError('פקודה לא נתמכת', s.line);
+  }
+  lookup(name, f) {
+    for (let i = f.scopes.length - 1; i >= 0; i--) { const s = f.scopes[i]; if (s.has(name)) return s.get(name); }
+    return this.globals.get(name) || null;
+  }
+  coerce(type, v, line) {
+    if (!type || type.dims > 0 || v === undefined || v === null) return v;
+    switch (type.name) {
+      case 'double': case 'float': case 'decimal':
+        if (v instanceof D) return v;
+        if (typeof v === 'number' || typeof v === 'bigint' || v instanceof Ch) return new D(num(v));
+        return v;
+      case 'long': case 'ulong':
+        if (typeof v === 'bigint') return v;
+        if (typeof v === 'number') return BigInt(v);
+        if (v instanceof Ch) return BigInt(code(v));
+        if (v instanceof D) throw new CsError('אי אפשר להמיר double ל־long בלי המרה מפורשת, למשל (long)x', line);
+        return v;
+      case 'int': case 'short': case 'byte': case 'sbyte': case 'uint': case 'ushort':
+        if (v instanceof Ch) return code(v);
+        if (v instanceof D) throw new CsError('אי אפשר להמיר double ל־int בלי המרה מפורשת, למשל (int)x', line);
+        if (typeof v === 'bigint') throw new CsError('אי אפשר להמיר long ל־int בלי המרה מפורשת, למשל (int)x', line);
+        return v;
+      case 'char':
+        if (typeof v === 'number') return new Ch(String.fromCharCode(v));
+        return v;
+    }
+    return v;
+  }
+  castTo(type, v, line) {
+    switch (type.name) {
+      case 'int': case 'short': case 'byte': case 'sbyte': case 'uint': case 'ushort':
+        if (v instanceof D) return Math.trunc(v.v) | 0;
+        if (typeof v === 'bigint') return Number(BigInt.asIntN(32, v));
+        if (v instanceof Ch) return code(v);
+        if (typeof v === 'number') return v | 0;
+        break;
+      case 'long': case 'ulong':
+        if (v instanceof D) return BigInt(Math.trunc(v.v));
+        if (typeof v === 'number') return BigInt(v);
+        if (v instanceof Ch) return BigInt(code(v));
+        if (typeof v === 'bigint') return v;
+        break;
+      case 'double': case 'float': case 'decimal':
+        if (isNum(v)) return new D(num(v));
+        break;
+      case 'char':
+        if (v instanceof Ch) return v;
+        if (isNum(v)) return new Ch(String.fromCharCode(Math.trunc(num(v)) & 0xffff));
+        break;
+      case 'string': if (typeof v === 'string' || v === null) return v; break;
+      case 'bool': if (typeof v === 'boolean') return v; break;
+    }
+    throw new CsError(`אי אפשר להמיר את הערך ל־${type.name}`, line);
+  }
+  evalInit(init, type, f) {
+    if (Array.isArray(init)) return this.buildArray(init, type.dims > 0 ? { ...type, dims: type.dims - 1 } : null, f, init.line);
+    if (init.k === 'arrlit' && !init.elem && type.dims > 0) return this.buildArray(init.items, { ...type, dims: type.dims - 1 }, f, init.line);
+    return this.eval(init, f);
+  }
+  buildArray(items, elem, f, line) {
+    const arr = items.map(it => {
+      if (it.k === 'arrlit') return this.buildArray(it.items, it.elem || (elem && elem.dims > 0 ? { ...elem, dims: elem.dims - 1 } : null), f, it.line);
+      const v = this.eval(it, f);
+      return elem ? this.coerce(elem, v, line) : v;
+    });
+    arr.et = elem; return arr;
+  }
+  toIdx(ix, line) {
+    if (typeof ix === 'number') return ix;
+    if (typeof ix === 'bigint') return Number(ix);
+    if (ix instanceof Ch) return code(ix);
+    throw new CsError('האינדקס חייב להיות מספר שלם', line);
+  }
+  getIndex(o, ix, line) {
+    if (o === null || o === undefined) throw new CsError('NullReferenceException — ניסיון לגשת לערך null', line);
+    if (Array.isArray(o)) {
+      const i = this.toIdx(ix, line);
+      if (i < 0 || i >= o.length) throw new CsError(`IndexOutOfRangeException — האינדקס ${i} מחוץ לגבולות המערך (אורך ${o.length})`, line);
+      return o[i];
+    }
+    if (typeof o === 'string') {
+      const i = this.toIdx(ix, line);
+      if (i < 0 || i >= o.length) throw new CsError(`IndexOutOfRangeException — האינדקס ${i} מחוץ לגבולות המחרוזת (אורך ${o.length})`, line);
+      return new Ch(o[i]);
+    }
+    if (o.kind === 'list') {
+      const i = this.toIdx(ix, line);
+      if (i < 0 || i >= o.a.length) throw new CsError(`ArgumentOutOfRangeException — האינדקס ${i} מחוץ לגבולות הרשימה (גודל ${o.a.length})`, line);
+      return o.a[i];
+    }
+    if (o.kind === 'dict') {
+      const k = keyOf(ix);
+      if (!o.m.has(k)) throw new CsError(`KeyNotFoundException — המפתח ${show(ix)} לא קיים במילון`, line);
+      return o.m.get(k).v;
+    }
+    throw new CsError('לא ניתן להשתמש באינדקס [ ] על הערך הזה', line);
+  }
+  setIndex(o, ix, v, line) {
+    if (o === null || o === undefined) throw new CsError('NullReferenceException — ניסיון לגשת לערך null', line);
+    if (Array.isArray(o)) {
+      const i = this.toIdx(ix, line);
+      if (i < 0 || i >= o.length) throw new CsError(`IndexOutOfRangeException — האינדקס ${i} מחוץ לגבולות המערך (אורך ${o.length})`, line);
+      o[i] = this.coerce(o.et, v, line); return o[i];
+    }
+    if (o.kind === 'list') {
+      const i = this.toIdx(ix, line);
+      if (i < 0 || i >= o.a.length) throw new CsError(`ArgumentOutOfRangeException — האינדקס ${i} מחוץ לגבולות הרשימה (גודל ${o.a.length})`, line);
+      o.a[i] = this.coerce(o.et, v, line); return o.a[i];
+    }
+    if (o.kind === 'dict') { const val = this.coerce(o.vt, v, line); o.m.set(keyOf(ix), { k: this.coerce(o.kt, ix, line), v: val }); return val; }
+    throw new CsError('אי אפשר להשים ערך באינדקס של הערך הזה', line);
+  }
+  ref(t, f) {
+    if (t.k === 'id') {
+      const e = this.lookup(t.name, f);
+      if (!e) throw new CsError(`השם '${t.name}' לא קיים בהקשר הנוכחי`, t.line);
+      return { get: () => e.v, set: (v) => { e.v = this.coerce(e.type, v, t.line); return e.v; } };
+    }
+    if (t.k === 'index') {
+      const o = this.eval(t.obj, f), ix = this.eval(t.idx, f);
+      return { get: () => this.getIndex(o, ix, t.line), set: (v) => this.setIndex(o, ix, v, t.line) };
+    }
+    if (t.k === 'member' && t.obj.k === 'id' && this.classNames.has(t.obj.name) && this.globals.has(t.name)) {
+      const e = this.globals.get(t.name);
+      return { get: () => e.v, set: (v) => { e.v = this.coerce(e.type, v, t.line); return e.v; } };
+    }
+    throw new CsError('אי אפשר לשנות את הערך הזה', t.line);
+  }
+  binop(op, a, b, line) {
+    if (op === '+' && (typeof a === 'string' || typeof b === 'string')) return fmt(a) + fmt(b);
+    if (op === '==') return equals(a, b);
+    if (op === '!=') return !equals(a, b);
+    if (typeof a === 'boolean' && typeof b === 'boolean') {
+      if (op === '&') return a && b; if (op === '|') return a || b; if (op === '^') return a !== b;
+    }
+    if (!isNum(a) || !isNum(b)) throw new CsError(`האופרטור '${op}' לא מוגדר עבור הערכים האלה`, line);
+    if (a instanceof D || b instanceof D) {
+      const x = num(a), y = num(b);
+      switch (op) {
+        case '+': return new D(x + y); case '-': return new D(x - y); case '*': return new D(x * y);
+        case '/': return new D(x / y); case '%': return new D(x % y);
+        case '<': return x < y; case '>': return x > y; case '<=': return x <= y; case '>=': return x >= y;
+      }
+    } else if (typeof a === 'bigint' || typeof b === 'bigint') {
+      const x = toBig(a), y = toBig(b), w = (v) => BigInt.asIntN(64, v);
+      switch (op) {
+        case '+': return w(x + y); case '-': return w(x - y); case '*': return w(x * y);
+        case '/': if (y === 0n) throw new CsError('DivideByZeroException — חילוק באפס', line); return w(x / y);
+        case '%': if (y === 0n) throw new CsError('DivideByZeroException — חילוק באפס', line); return x % y;
+        case '<': return x < y; case '>': return x > y; case '<=': return x <= y; case '>=': return x >= y;
+        case '&': return x & y; case '|': return x | y; case '^': return x ^ y;
+      }
+    } else {
+      const x = num(a), y = num(b);
+      switch (op) {
+        case '+': return (x + y) | 0; case '-': return (x - y) | 0; case '*': return Math.imul(x, y);
+        case '/': if (y === 0) throw new CsError('DivideByZeroException — חילוק באפס', line); return Math.trunc(x / y) | 0;
+        case '%': if (y === 0) throw new CsError('DivideByZeroException — חילוק באפס', line); return x % y;
+        case '<': return x < y; case '>': return x > y; case '<=': return x <= y; case '>=': return x >= y;
+        case '&': return x & y; case '|': return x | y; case '^': return x ^ y;
+      }
+    }
+    throw new CsError(`האופרטור '${op}' לא נתמך`, line);
+  }
+  step(v, d, line) {
+    if (v instanceof D) return new D(v.v + d);
+    if (typeof v === 'bigint') return BigInt.asIntN(64, v + BigInt(d));
+    if (v instanceof Ch) return new Ch(String.fromCharCode(code(v) + d));
+    if (typeof v === 'number') return (v + d) | 0;
+    throw new CsError('++ / -- עובדים רק על מספרים', line);
+  }
+  callUser(name, argNodes, f, line) {
+    const cands = this.methods.get(name);
+    if (!cands) throw new CsError(`השם '${name}' לא קיים בהקשר הנוכחי`, line);
+    const vals = argNodes.map(a => this.eval(a, f));
+    const m = cands.find(c => c.params.length >= vals.length && c.params.filter(p => !p.def).length <= vals.length);
+    if (!m) throw new CsError(`אין גרסה של '${name}' שמקבלת ${vals.length} פרמטרים`, line);
+    return this.invoke(m, vals, line, f);
+  }
+  eval(e, f) {
+    switch (e.k) {
+      case 'lit': return e.val;
+      case 'id': {
+        const v = this.lookup(e.name, f);
+        if (!v) throw new CsError(`השם '${e.name}' לא קיים בהקשר הנוכחי`, e.line);
+        return v.v;
+      }
+      case 'istr': return e.parts.map(p => typeof p === 'string' ? p : fmtSpec(this.eval(p.e, f), p.fmt)).join('');
+      case 'bin': {
+        if (e.op === '&&') return this.cond(e.l, f) && this.cond(e.r, f);
+        if (e.op === '||') return this.cond(e.l, f) || this.cond(e.r, f);
+        if (e.op === '??') { const l = this.eval(e.l, f); return l !== null && l !== undefined ? l : this.eval(e.r, f); }
+        const a = this.eval(e.l, f), b = this.eval(e.r, f);
+        return this.binop(e.op, a, b, e.line);
+      }
+      case 'un': {
+        const v = this.eval(e.e, f);
+        if (e.op === '!') { if (typeof v !== 'boolean') throw new CsError("האופרטור ! עובד רק על bool", e.line); return !v; }
+        if (!isNum(v)) throw new CsError(`האופרטור '${e.op}' עובד רק על מספרים`, e.line);
+        if (e.op === '+') return v instanceof Ch ? code(v) : v;
+        if (e.op === '~') return ~num(v);
+        if (v instanceof D) return new D(-v.v);
+        if (typeof v === 'bigint') return BigInt.asIntN(64, -v);
+        return (-num(v)) | 0;
+      }
+      case 'cond': return this.cond(e.c, f) ? this.eval(e.a, f) : this.eval(e.b, f);
+      case 'cast': return this.castTo(e.type, this.eval(e.e, f), e.line);
+      case 'assign': {
+        const r = this.ref(e.target, f);
+        if (e.op === '=') return r.set(this.eval(e.value, f));
+        const cur = r.get(), rhs = this.eval(e.value, f);
+        return r.set(this.binop(e.op.slice(0, -1), cur, rhs, e.line));
+      }
+      case 'incdec': {
+        const r = this.ref(e.target, f), old = r.get();
+        const nv = r.set(this.step(old, e.op === '++' ? 1 : -1, e.line));
+        return e.prefix ? nv : old;
+      }
+      case 'call': return this.callUser(e.name, e.args, f, e.line);
+      case 'mcall': return this.mcall(e, f);
+      case 'member': return this.member(e, f);
+      case 'index': return this.getIndex(this.eval(e.obj, f), this.eval(e.idx, f), e.line);
+      case 'arrlit': return this.buildArray(e.items, e.elem, f, e.line);
+      case 'newarr': {
+        const n = this.toIdx(this.eval(e.size, f), e.line);
+        if (n < 0) throw new CsError('OverflowException — גודל מערך לא יכול להיות שלילי', e.line);
+        if (n > 200000) throw new CsError('המערך גדול מדי עבור הסימולטור', e.line);
+        const arr = new Array(n); const d = defaultFor(e.elem);
+        for (let i = 0; i < n; i++) arr[i] = d instanceof D ? new D(0) : d;
+        arr.et = e.elem; return arr;
+      }
+      case 'new': return this.newObj(e, f);
+    }
+    throw new CsError('ביטוי לא נתמך', e.line);
+  }
+  newObj(e, f) {
+    const t = e.type, args = e.args.map(a => this.eval(a, f));
+    if (t.name === 'List') {
+      const et = t.args && t.args[0];
+      const lst = { kind: 'list', a: [], et };
+      if (args[0] && Array.isArray(args[0])) lst.a = args[0].slice();
+      if (e.init) e.init.forEach(i => lst.a.push(this.coerce(et, this.eval(i, f), e.line)));
+      return lst;
+    }
+    if (t.name === 'Dictionary') return { kind: 'dict', m: new Map(), kt: t.args && t.args[0], vt: t.args && t.args[1] };
+    if (/Exception$/.test(t.name)) return { kind: 'exc', type: t.name, msg: args.length ? fmt(args[0]) : '' };
+    if (t.name === 'string') return args.length ? fmt(args[0]) : '';
+    throw new CsError(`הסוג '${t.name}' עדיין לא נתמך ב־new`, e.line);
+  }
+  member(e, f) {
+    const o = e.obj;
+    if (o.k === 'id' && !this.lookup(o.name, f)) {
+      const k = o.name + '.' + e.name;
+      switch (k) {
+        case 'Math.PI': return new D(Math.PI); case 'Math.E': return new D(Math.E);
+        case 'int.MaxValue': return 2147483647; case 'int.MinValue': return -2147483648;
+        case 'long.MaxValue': return 9223372036854775807n; case 'long.MinValue': return -9223372036854775808n;
+        case 'double.MaxValue': return new D(Number.MAX_VALUE); case 'double.PositiveInfinity': return new D(Infinity);
+        case 'string.Empty': return '';
+      }
+      if (this.classNames.has(o.name) && this.globals.has(e.name)) return this.globals.get(e.name).v;
+      throw new CsError(`השם '${k}' לא קיים`, e.line);
+    }
+    const t = this.eval(o, f);
+    if (t === null || t === undefined) throw new CsError('NullReferenceException — ניסיון לגשת לערך null', e.line);
+    if (e.name === 'Length' && (typeof t === 'string' || Array.isArray(t))) return t.length;
+    if (e.name === 'Count' && t.kind === 'list') return t.a.length;
+    if (e.name === 'Count' && t.kind === 'dict') return t.m.size;
+    throw new CsError(`למאפיין '${e.name}' אין תמיכה בסימולטור`, e.line);
+  }
+  mcall(e, f) {
+    const o = e.obj, name = e.name, line = e.line;
+    if (o.k === 'id' && !this.lookup(o.name, f)) {
+      const cls = o.name;
+      if (this.classNames.has(cls)) return this.callUser(name, e.args, f, line);
+      const args = e.args.map(a => this.eval(a, f));
+      switch (cls) {
+        case 'Console': return this.consoleCall(name, args, line);
+        case 'Math': return this.mathCall(name, args, line);
+        case 'string': case 'String':
+          if (name === 'IsNullOrEmpty') return args[0] === null || args[0] === '';
+          if (name === 'Join') {
+            const items = Array.isArray(args[1]) ? args[1] : args[1] && args[1].kind === 'list' ? args[1].a : args.slice(1);
+            return items.map(fmt).join(fmt(args[0]));
+          }
+          if (name === 'Concat') return args.map(fmt).join('');
+          break;
+        case 'int': case 'Int32':
+          if (name === 'Parse') { const n = Number(String(args[0]).trim()); if (!Number.isInteger(n)) throw new CsError('FormatException — המחרוזת אינה מספר שלם', line); return n; }
+          break;
+        case 'double': case 'Double':
+          if (name === 'Parse') { const n = Number(String(args[0]).trim()); if (Number.isNaN(n)) throw new CsError('FormatException — המחרוזת אינה מספר', line); return new D(n); }
+          break;
+        case 'Convert':
+          if (name === 'ToInt32') return this.castTo({ name: 'int' }, typeof args[0] === 'string' ? Number(args[0]) : args[0], line);
+          if (name === 'ToString') return fmt(args[0]);
+          break;
+        case 'Array':
+          if (name === 'Reverse' && Array.isArray(args[0])) { args[0].reverse(); return; }
+          break;
+      }
+      throw new CsError(`הפעולה ${cls}.${name} עדיין לא נתמכת בסימולטור`, line);
+    }
+    const t = this.eval(o, f), args = e.args.map(a => this.eval(a, f));
+    return this.instCall(t, name, args, line);
+  }
+  consoleCall(name, args, line) {
+    if (name === 'WriteLine' || name === 'Write') {
+      let text = '';
+      if (args.length) text = (typeof args[0] === 'string' && args.length > 1) ? formatString(args[0], args.slice(1)) : fmt(args[0]);
+      this.emit({ type: 'print', text, nl: name === 'WriteLine', line });
+      return;
+    }
+    if (name === 'ReadLine' || name === 'ReadKey') return null;
+    throw new CsError(`הפעולה Console.${name} לא נתמכת`, line);
+  }
+  mathCall(name, a, line) {
+    const wrapD = (v) => new D(v);
+    switch (name) {
+      case 'Max': case 'Min': {
+        const [x, y] = a; const pickX = name === 'Max' ? num(x) >= num(y) : num(x) <= num(y);
+        const r = pickX ? x : y;
+        if (x instanceof D || y instanceof D) return wrapD(num(r));
+        if (typeof x === 'bigint' || typeof y === 'bigint') return toBig(r);
+        return r;
+      }
+      case 'Abs': {
+        const x = a[0];
+        if (x instanceof D) return wrapD(Math.abs(x.v));
+        if (typeof x === 'bigint') return x < 0n ? -x : x;
+        return Math.abs(x) | 0;
+      }
+      case 'Pow': return wrapD(Math.pow(num(a[0]), num(a[1])));
+      case 'Sqrt': return wrapD(Math.sqrt(num(a[0])));
+      case 'Floor': return wrapD(Math.floor(num(a[0])));
+      case 'Ceiling': return wrapD(Math.ceil(num(a[0])));
+      case 'Truncate': return wrapD(Math.trunc(num(a[0])));
+      case 'Round': {
+        const x = num(a[0]), fl = Math.floor(x), d = x - fl;
+        return wrapD(d < 0.5 ? fl : d > 0.5 ? fl + 1 : (fl % 2 === 0 ? fl : fl + 1));
+      }
+      case 'Log': return wrapD(a.length > 1 ? Math.log(num(a[0])) / Math.log(num(a[1])) : Math.log(num(a[0])));
+      case 'Log10': return wrapD(Math.log10(num(a[0])));
+      case 'Exp': return wrapD(Math.exp(num(a[0])));
+      case 'Sin': return wrapD(Math.sin(num(a[0])));
+      case 'Cos': return wrapD(Math.cos(num(a[0])));
+      case 'Tan': return wrapD(Math.tan(num(a[0])));
+      case 'Sign': return Math.sign(num(a[0]));
+    }
+    throw new CsError(`הפעולה Math.${name} עדיין לא נתמכת בסימולטור`, line);
+  }
+  instCall(t, name, a, line) {
+    if (t === null || t === undefined) throw new CsError('NullReferenceException — ניסיון לקרוא לפעולה על ערך null', line);
+    if (name === 'ToString' && a.length === 0) return fmt(t);
+    if (name === 'Equals') return equals(t, a[0]);
+    if (typeof t === 'string') {
+      const rng = (i, msg) => { if (i < 0 || i > t.length) throw new CsError(`ArgumentOutOfRangeException — ${msg}`, line); };
+      switch (name) {
+        case 'Substring': {
+          const s = this.toIdx(a[0], line); rng(s, 'אינדקס ההתחלה מחוץ לגבולות');
+          if (a.length > 1) { const l = this.toIdx(a[1], line); if (l < 0 || s + l > t.length) throw new CsError('ArgumentOutOfRangeException — האורך מחוץ לגבולות', line); return t.substr(s, l); }
+          return t.slice(s);
+        }
+        case 'ToUpper': return t.toUpperCase(); case 'ToLower': return t.toLowerCase();
+        case 'Trim': return t.trim();
+        case 'Contains': return t.includes(fmt(a[0]));
+        case 'IndexOf': return t.indexOf(fmt(a[0]));
+        case 'StartsWith': return t.startsWith(fmt(a[0])); case 'EndsWith': return t.endsWith(fmt(a[0]));
+        case 'Replace': return t.split(fmt(a[0])).join(fmt(a[1]));
+        case 'ToCharArray': { const r = [...t].map(c => new Ch(c)); r.et = { name: 'char', dims: 0 }; return r; }
+      }
+    } else if (t.kind === 'list') {
+      switch (name) {
+        case 'Add': t.a.push(this.coerce(t.et, a[0], line)); return;
+        case 'Contains': return t.a.some(x => equals(x, a[0]));
+        case 'IndexOf': return t.a.findIndex(x => equals(x, a[0]));
+        case 'RemoveAt': { const i = this.toIdx(a[0], line); if (i < 0 || i >= t.a.length) throw new CsError('ArgumentOutOfRangeException — האינדקס מחוץ לגבולות הרשימה', line); t.a.splice(i, 1); return; }
+        case 'Insert': t.a.splice(this.toIdx(a[0], line), 0, this.coerce(t.et, a[1], line)); return;
+        case 'Clear': t.a.length = 0; return;
+        case 'Reverse': t.a.reverse(); return;
+      }
+    } else if (t.kind === 'dict') {
+      switch (name) {
+        case 'ContainsKey': return t.m.has(keyOf(a[0]));
+        case 'Add': {
+          if (t.m.has(keyOf(a[0]))) throw new CsError('ArgumentException — המפתח כבר קיים במילון', line);
+          t.m.set(keyOf(a[0]), { k: this.coerce(t.kt, a[0], line), v: this.coerce(t.vt, a[1], line) }); return;
+        }
+        case 'Remove': return t.m.delete(keyOf(a[0]));
+        case 'Clear': t.m.clear(); return;
+        case 'TryGetValue': throw new CsError('TryGetValue עם out עדיין לא נתמך. אפשר להשתמש ב־ContainsKey', line);
+      }
+    }
+    throw new CsError(`הפעולה '${name}' עדיין לא נתמכת בסימולטור`, line);
+  }
+}
+
+function runProgram(src, opts) {
+  const prog = parse(src);
+  const res = new Interp(prog, opts).execute();
+  return res.events;
+}
+
+if (typeof module !== 'undefined') module.exports = { parse, runProgram, lex, CsError };
+
+</script>
+<script>
+/* דוגמאות מוכנות */
+const EXAMPLES = [
+  {
+    id: 'fib', name: 'פיבונאצ׳י',
+    code: `using System;
+
+class Program
+{
+    static int Fib(int n)
+    {
+        if (n <= 1)
+            return n;
+        return Fib(n - 1) + Fib(n - 2);
+    }
+
+    static void Main()
+    {
+        int result = Fib(4);
+        Console.WriteLine("Fib(4) = " + result);
+    }
+}
+`
+  },
+  {
+    id: 'fact', name: 'עצרת',
+    code: `using System;
+
+class Program
+{
+    static int Factorial(int n)
+    {
+        if (n == 0)
+            return 1;
+        return n * Factorial(n - 1);
+    }
+
+    static void Main()
+    {
+        Console.WriteLine("5! = " + Factorial(5));
+    }
+}
+`
+  },
+  {
+    id: 'sum', name: 'סכום 1 עד n',
+    code: `using System;
+
+class Program
+{
+    static int Sum(int n)
+    {
+        if (n == 0)
+            return 0;
+        return n + Sum(n - 1);
+    }
+
+    static void Main()
+    {
+        int total = Sum(5);
+        Console.WriteLine($"הסכום הוא {total}");
+    }
+}
+`
+  },
+  {
+    id: 'gcd', name: 'מחלק משותף גדול',
+    code: `using System;
+
+class Program
+{
+    // האלגוריתם של אוקלידס
+    static int Gcd(int a, int b)
+    {
+        if (b == 0)
+            return a;
+        return Gcd(b, a % b);
+    }
+
+    static void Main()
+    {
+        Console.WriteLine(Gcd(48, 18));
+    }
+}
+`
+  },
+  {
+    id: 'pow', name: 'חזקה מהירה',
+    code: `using System;
+
+class Program
+{
+    static long Power(long x, int n)
+    {
+        if (n == 0)
+            return 1;
+        long half = Power(x, n / 2);
+        if (n % 2 == 0)
+            return half * half;
+        return half * half * x;
+    }
+
+    static void Main()
+    {
+        Console.WriteLine("2^10 = " + Power(2, 10));
+    }
+}
+`
+  },
+  {
+    id: 'hanoi', name: 'מגדלי האנוי',
+    code: `using System;
+
+class Program
+{
+    static void Hanoi(int n, char from, char to, char via)
+    {
+        if (n == 0)
+            return;
+        Hanoi(n - 1, from, via, to);
+        Console.WriteLine($"דיסק {n}: {from} -> {to}");
+        Hanoi(n - 1, via, to, from);
+    }
+
+    static void Main()
+    {
+        Hanoi(2, 'A', 'C', 'B');
+    }
+}
+`
+  },
+  {
+    id: 'rev', name: 'היפוך מחרוזת',
+    code: `using System;
+
+class Program
+{
+    static string Reverse(string s)
+    {
+        if (s.Length <= 1)
+            return s;
+        return Reverse(s.Substring(1)) + s[0];
+    }
+
+    static void Main()
+    {
+        Console.WriteLine(Reverse("abcd"));
+    }
+}
+`
+  },
+  {
+    id: 'arr', name: 'סכום מערך',
+    code: `using System;
+
+class Program
+{
+    static int SumArray(int[] arr, int i)
+    {
+        if (i == arr.Length)
+            return 0;
+        return arr[i] + SumArray(arr, i + 1);
+    }
+
+    static void Main()
+    {
+        int[] numbers = { 3, 1, 4, 1, 5 };
+        Console.WriteLine(SumArray(numbers, 0));
+    }
+}
+`
+  },
+  {
+    id: 'memo', name: 'פיבונאצ׳י עם זיכרון',
+    code: `using System;
+using System.Collections.Generic;
+
+class Program
+{
+    static Dictionary<int, long> memo = new Dictionary<int, long>();
+
+    static long Fib(int n)
+    {
+        if (n <= 1)
+            return n;
+        if (memo.ContainsKey(n))
+            return memo[n];
+        long value = Fib(n - 1) + Fib(n - 2);
+        memo[n] = value;
+        return value;
+    }
+
+    static void Main()
+    {
+        Console.WriteLine(Fib(6));
+    }
+}
+`
+  },
+  {
+    id: 'inf', name: 'בלי תנאי עצירה',
+    code: `using System;
+
+class Program
+{
+    // שימו לב: אין כאן תנאי עצירה
+    static int Count(int n)
+    {
+        return Count(n + 1);
+    }
+
+    static void Main()
+    {
+        Count(1);
+    }
+}
+`
+  }
+];
+if (typeof module !== 'undefined') module.exports = { EXAMPLES };
+
+</script>
+<script>
+/* ===================================================================
+   ממשק: עורך קוד, בקרת הרצה ואנימציית חלונות הקריאה
+   =================================================================== */
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const LINE_H = 21;
+
+  const ta = $('#ta'), hlEl = $('#hl'), gutIn = $('#gutIn');
+  const runBtn = $('#run'), backBtn = $('#back'), fwdBtn = $('#fwd');
+  const spdIn = $('#spd'), spdOut = $('#spdOut'), exSel = $('#ex');
+  const whatEl = $('#what'), stepEl = $('#stepNo'), pbar = $('#pbar');
+  const consoleEl = $('#consoleOut'), app = $('.app');
+  const scroller = $('#scroller'), stackEl = $('#stack'), noteEl = $('#note'), emptyEl = $('#empty');
+
+  const SPEEDS = [0.1, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2, 3];
+  let events = [], N = 0, cur = 0, dirty = true, compileError = null, playing = false, playTimer = null;
+  let spdF = 1;
+  let activeLine = 0, activeKind = '', errLine = 0;
+
+  /* ---------- הדגשת תחביר ---------- */
+  const KW = new Set('abstract as base break case catch checked class const continue default delegate do else enum event explicit extern false finally fixed for foreach goto if implicit in interface internal is lock namespace new null operator out override params private protected public readonly ref return sealed sizeof static struct switch this throw true try typeof unchecked unsafe using virtual volatile while'.split(' '));
+  const PRIM = new Set('bool byte char decimal double float int long object sbyte short string uint ulong ushort var void'.split(' '));
+  const TOKEN_RE = /(\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$))|([$@]*"(?:[^"\\\n]|\\.)*(?:"|$)|'(?:[^'\\\n]|\\.)*'?)|(\b\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?[LlDdFfMm]?\b)|([A-Za-z_]\w*)/g;
+
+  function highlight(src, subst) {
+    const lines = [''];
+    const put = (cls, text) => {
+      const parts = text.split('\n');
+      parts.forEach((p, j) => {
+        if (j > 0) lines.push('');
+        if (p) lines[lines.length - 1] += cls ? `<span class="${cls}">${esc(p)}</span>` : esc(p);
+      });
+    };
+    let last = 0, m;
+    TOKEN_RE.lastIndex = 0;
+    while ((m = TOKEN_RE.exec(src))) {
+      if (m.index > last) put('', src.slice(last, m.index));
+      const t = m[0];
+      if (m[1]) put('t-cm', t);
+      else if (m[2]) put('t-str', t);
+      else if (m[3]) put('t-num', t);
+      else {
+        const after = src.slice(m.index + t.length, m.index + t.length + 24);
+        if (subst && subst.has(t) && src[m.index - 1] !== '.' && !/^\s*(\(|\[|\.|=(?!=)|\+\+|--|[-+*/%&|^]=)/.test(after)) put('t-val', subst.get(t));
+        else if (PRIM.has(t)) put('t-ty', t);
+        else if (KW.has(t)) put('t-kw', t);
+        else if (/^\s*\(/.test(after)) put('t-fn', t);
+        else if (/^[A-Z]/.test(t)) put('t-ty', t);
+        else put('', t);
+      }
+      last = m.index + t.length;
+    }
+    if (last < src.length) put('', src.slice(last));
+    return lines;
+  }
+
+  function renderEditor() {
+    const lines = highlight(ta.value);
+    hlEl.innerHTML = lines.map((h, i) => {
+      const n = i + 1;
+      let cls = '';
+      if (n === errLine) cls = ' errl';
+      else if (n === activeLine) cls = activeKind === 'ret' ? ' ret' : activeKind === 'err' ? ' errl' : ' call';
+      return `<span class="ln${cls}">${h || '​'}</span>`;
+    }).join('');
+    gutIn.innerHTML = lines.map((_, i) => {
+      const n = i + 1;
+      const cls = n === errLine || (n === activeLine && activeKind === 'err') ? 'err' : n === activeLine ? 'on' : '';
+      return `<span class="${cls}">${n}</span>`;
+    }).join('');
+    syncScroll();
+  }
+  function syncScroll() {
+    hlEl.style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`;
+    gutIn.style.transform = `translateY(${-ta.scrollTop}px)`;
+  }
+  function revealLine(n) {
+    if (!n) return;
+    const top = 10 + (n - 1) * LINE_H, h = ta.clientHeight;
+    if (top < ta.scrollTop + 8) ta.scrollTop = Math.max(0, top - 44);
+    else if (top + LINE_H > ta.scrollTop + h - 8) ta.scrollTop = top - h / 2;
+    syncScroll();
+  }
+
+  /* ---------- שליטה בזמן: כל פעולה מתוזמנת ניתנת לסיום מיידי ---------- */
+  let pend = [];
+  function later(baseMs, fn) {
+    const rec = { fn };
+    rec.t = setTimeout(() => { pend = pend.filter(x => x !== rec); fn(); }, Math.max(30, baseMs * spdF));
+    pend.push(rec);
+  }
+  function flush() {
+    const list = pend; pend = [];
+    list.forEach(r => { clearTimeout(r.t); r.fn(); });
+  }
+
+  /* ---------- שחזור מצב מהאירועים ---------- */
+  function stateAt(k) {
+    const stack = []; let out = '', err = null;
+    for (let i = 0; i < k; i++) {
+      const ev = events[i];
+      if (ev.type === 'call') {
+        if (stack.length) { const pf = stack[stack.length - 1]; pf.child = ev.sig; pf.line = ev.line; }
+        stack.push({ id: ev.id, sig: ev.sig, params: ev.params, depth: ev.depth, child: null, gots: [],
+                     declLine: ev.declLine, endLine: ev.endLine, line: ev.declLine });
+      } else if (ev.type === 'return') {
+        stack.pop();
+        const par = stack[stack.length - 1];
+        if (par) { par.child = null; if (ev.hasValue) par.gots.push(ev.value); }
+      } else if (ev.type === 'print') {
+        out += ev.text + (ev.nl ? '\n' : '');
+        if (stack.length && ev.line) stack[stack.length - 1].line = ev.line;
+      } else if (ev.type === 'error') {
+        err = ev;
+        if (stack.length && ev.line) stack[stack.length - 1].line = ev.line;
+      }
+    }
+    return { stack, out, err };
+  }
+
+  /* ---------- חלונות וחיצים ---------- */
+  const entries = new Map(); let order = [];
+  function indentPx(i) {
+    const avail = Math.max(120, scroller.clientWidth - 32 - 400);
+    const cap = Math.min(176, avail), step = 22, raw = i * step;
+    if (raw <= cap) return raw;
+    const capIdx = Math.floor(cap / step);
+    return Math.min(capIdx * step + (i - capIdx) * 2, capIdx * step + 24);
+  }
+
+  function makeWin() {
+    const w = document.createElement('div');
+    w.className = 'win';
+    w.innerHTML = '<div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="ttl code"></span><span class="num"></span></div>' +
+      '<div class="body"><div class="params"></div><div class="codebox"></div><div class="status"></div><div class="gots"></div></div>';
+    return w;
+  }
+  function makeLink() {
+    const l = document.createElement('div');
+    l.className = 'link';
+    l.innerHTML =
+      '<div class="arr down"><svg viewBox="0 0 16 50" aria-hidden="true"><line class="shaft" x1="8" y1="3" x2="8" y2="40" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path class="head" d="M2.5 36 L8 46 L13.5 36" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lab"></span></div>' +
+      '<div class="arr up"><svg viewBox="0 0 16 50" aria-hidden="true"><line class="shaft" x1="8" y1="47" x2="8" y2="10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path class="head" d="M2.5 14 L8 4 L13.5 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lab">חזור</span></div>';
+    return l;
+  }
+  function createEntry(fr, i, animate) {
+    const win = makeWin();
+    win.style.marginLeft = indentPx(i) + 'px';
+    win.style.setProperty('--ind', indentPx(i) + 'px');
+    let link = null;
+    if (i > 0) {
+      link = makeLink();
+      link.style.marginLeft = (indentPx(i - 1) + 16) + 'px';
+      link.querySelector('.down .lab').textContent = fr.sig;
+      if (animate) link.querySelector('.arr.down').classList.add('enter');
+    }
+    if (animate) win.classList.add('enter');
+    if (link) stackEl.appendChild(link);
+    stackEl.appendChild(win);
+    return { win, link };
+  }
+  function removeEntry(en, animate) {
+    const gone = () => { en.win.remove(); if (en.link) en.link.remove(); };
+    if (!animate) { gone(); return; }
+    en.win.classList.add('closing');
+    if (en.link) en.link.classList.add('closing');
+    later(360, gone);
+  }
+  /* קוד הפונקציה בתוך החלון, עם הדגשת השורה הנוכחית */
+  let progHl = [], progRaw = [], progSrc = '';
+  function buildCode(box, fr) {
+    const a = fr.declLine || 1, b = Math.max(a, fr.endLine || a);
+    let ind = Infinity;
+    for (let n = a; n <= b; n++) {
+      const raw = progRaw[n - 1] || '';
+      if (raw.trim()) ind = Math.min(ind, /^[ \t]*/.exec(raw)[0].length);
+    }
+    if (!isFinite(ind)) ind = 0;
+    const strip = new RegExp('^[ \\t]{0,' + ind + '}');
+    /* ערכים ידועים: פרמטרים שהפונקציה לא משנה מוחלפים בערכם בגוף הקוד */
+    const bodyTxt = progRaw.slice(a, b).join('\n');
+    const known = new Map();
+    (fr.params || []).forEach(p => {
+      const nm = String(p.name).replace(/[^\w]/g, '');
+      if (!nm) return;
+      const assigned = new RegExp('\\b' + nm + '\\s*(?:=(?!=)|[-+*/%&|^]=|\\+\\+|--)|(?:\\+\\+|--)\\s*' + nm + '\\b|\\b(?:ref|out)\\s+' + nm + '\\b').test(bodyTxt);
+      if (!assigned) known.set(p.name, String(p.text).replace(/\s*\n\s*/g, ' '));
+    });
+    const withVals = known.size ? highlight(progSrc, known) : progHl;
+    let html = '';
+    for (let n = a; n <= b; n++) {
+      const row = n === a ? progHl : withVals;   /* שורת ההגדרה נשארת עם שמות הפרמטרים */
+      html += `<div class="cl" data-n="${n}"><span class="no">${n}</span><span class="tx">${(row[n - 1] || '').replace(strip, '') || ' '}</span></div>`;
+    }
+    box.innerHTML = html;
+    box.dataset.built = '1';
+  }
+  function markCode(win, fr, line, kind) {
+    const box = win.querySelector('.codebox');
+    if (!box.dataset.built) buildCode(box, fr);
+    let target = null;
+    box.querySelectorAll('.cl').forEach(el => {
+      const on = +el.dataset.n === line;
+      el.className = on ? 'cl ' + kind : 'cl';
+      if (on) target = el;
+    });
+    if (target) {
+      const t = target.offsetTop - box.clientHeight / 2 + 9;
+      box.scrollTop = Math.max(0, t);
+    }
+  }
+  function setStatus(win, html) { win.querySelector('.status').innerHTML = html; }
+  function updateWin(en, fr, isTop, st) {
+    const w = en.win;
+    w.querySelector('.ttl').textContent = fr.sig;
+    w.querySelector('.num').textContent = '#' + fr.id;
+    w.querySelector('.params').innerHTML = fr.params.length
+      ? fr.params.map(p => `<span class="p"><b>${esc(p.name)}</b> = ${esc(p.text)}</span>`).join('')
+      : '<span class="none">ללא פרמטרים</span>';
+    const hasErr = isTop && st.err;
+    w.classList.toggle('top', isTop && !hasErr);
+    w.classList.toggle('err', !!hasErr);
+    w.classList.remove('returning');
+    if (en.link) en.link.querySelector('.arr.up').classList.remove('on');
+    markCode(w, fr, fr.line, hasErr ? 'errl' : isTop ? 'cur' : 'wait');
+    if (hasErr) setStatus(w, 'השגיאה קרתה כאן');
+    else if (isTop) setStatus(w, '<span class="pulse"></span>מחשב…');
+    else setStatus(w, `ממתין ל־<span class="code">${esc(fr.child || '')}</span>`);
+    const g = w.querySelector('.gots');
+    g.innerHTML = fr.gots.length
+      ? 'התקבל: ' + fr.gots.slice(-4).map(v => `<span class="chip">${esc(v)}</span>`).join('')
+      : '';
+  }
+  function markReturning(ev) {
+    const en = entries.get(ev.id);
+    if (!en) return;
+    en.win.classList.remove('top');
+    en.win.classList.add('returning');
+    { const f = findFrame(ev.id); if (f) markCode(en.win, f, ev.line || f.endLine, 'ret'); }
+    setStatus(en.win, ev.hasValue ? `↩ מחזיר <span class="code">${esc(ev.value)}</span>` : '↩ מסיים (בלי ערך)');
+    if (en.link) {
+      const up = en.link.querySelector('.arr.up');
+      up.classList.add('on');
+      up.querySelector('.lab').textContent = ev.hasValue ? ev.value : 'סיום';
+    }
+  }
+  function reconcile(st, animate) {
+    const ids = st.stack.map(f => f.id);
+    let keep = 0;
+    while (keep < order.length && keep < ids.length && order[keep] === ids[keep]) keep++;
+    for (let i = order.length - 1; i >= keep; i--) {
+      const en = entries.get(order[i]);
+      entries.delete(order[i]); order.pop();
+      if (en) removeEntry(en, animate);
+    }
+    for (let i = keep; i < ids.length; i++) {
+      entries.set(ids[i], createEntry(st.stack[i], i, animate));
+      order.push(ids[i]);
+    }
+    st.stack.forEach((fr, i) => updateWin(entries.get(fr.id), fr, i === st.stack.length - 1, st));
+    renderNote(st);
+    requestAnimationFrame(() => { scroller.scrollTop = scroller.scrollHeight; });
+  }
+  function resetViz() {
+    flush();
+    stackEl.innerHTML = ''; entries.clear(); order = [];
+  }
+  function renderNote(st) {
+    const showEmpty = cur === 0 && st.stack.length === 0;
+    emptyEl.hidden = !showEmpty;
+    scroller.classList.toggle('is-empty', showEmpty);
+    noteEl.innerHTML = '';
+    if (st.err) {
+      noteEl.className = 'note err';
+      noteEl.textContent = st.err.msg;
+    } else if (N > 0 && cur >= N && st.stack.length === 0) {
+      const calls = events.filter(e => e.type === 'call');
+      const maxD = calls.reduce((m, e) => Math.max(m, e.depth), 1) - 1;
+      noteEl.className = 'note done';
+      noteEl.innerHTML = `<b>הריצה הסתיימה.</b> ${calls.length - 1} קריאות, עומק מקסימלי ${maxD}. כל החלונות נסגרו.`;
+    } else { noteEl.className = ''; }
+  }
+
+  /* ---------- סטטוס, פלט וכפתורים ---------- */
+  function describe(ev) {
+    if (!ev) return compileError ? `שגיאה בשורה ${compileError.line}` : 'מוכן להרצה';
+    const c = (t) => `<b>${esc(t)}</b>`;
+    if (ev.type === 'call') return ev.depth === 1 ? `התוכנית מתחילה ב־${c(ev.name)}` : `קריאה ${c(ev.sig)}`;
+    if (ev.type === 'return') return ev.hasValue ? `חזרה מ־${esc(ev.id ? findSig(ev.id) : '')} עם הערך ${c(ev.value)}` : `סיום ${esc(findSig(ev.id))}`;
+    if (ev.type === 'print') return `הדפסה: ${c(ev.text)}`;
+    return 'שגיאה בזמן ריצה';
+  }
+  function findFrame(id) {
+    for (const e of events) if (e.type === 'call' && e.id === id) return { declLine: e.declLine, endLine: e.endLine, params: e.params };
+    return null;
+  }
+  function findSig(id) {
+    for (const e of events) if (e.type === 'call' && e.id === id) return e.sig;
+    return '';
+  }
+  function updateChrome(st) {
+    const ev = cur > 0 ? events[cur - 1] : null;
+    whatEl.innerHTML = describe(ev);
+    stepEl.textContent = `${cur}/${N}`;
+    pbar.style.width = (N ? (cur / N) * 100 : 0) + '%';
+    backBtn.disabled = cur <= 0;
+    fwdBtn.disabled = compileError ? true : (!dirty && cur >= N);
+    // פלט
+    let html = '';
+    if (compileError) html = `<span class="e">שגיאת קומפילציה, שורה ${compileError.line}: ${esc(compileError.msg)}</span>`;
+    else if (st.out) html = esc(st.out);
+    if (st.err) html += (html && !html.endsWith('\n') ? '\n' : '') + `<span class="e">${esc(st.err.msg)}</span>`;
+    consoleEl.classList.toggle('empty', !html);
+    consoleEl.innerHTML = html || 'הפלט של התוכנית יופיע כאן';
+    updateRunBtn();
+  }
+  const ICON_PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9.5-5.5z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 16 16"><rect x="3.5" y="2.5" width="3.2" height="11" rx="1"/><rect x="9.3" y="2.5" width="3.2" height="11" rx="1"/></svg>';
+  function updateRunBtn() {
+    let label = 'הרץ', icon = ICON_PLAY;
+    if (playing) { label = 'השהה'; icon = ICON_PAUSE; }
+    else if (!dirty && N > 0 && cur >= N) label = 'הרץ שוב';
+    else if (!dirty && cur > 0) label = 'המשך';
+    runBtn.innerHTML = icon + '<span>' + label + '</span>';
+  }
+  function setActive(ev) {
+    if (!ev) { activeLine = 0; activeKind = ''; }
+    else { activeLine = ev.line || 0; activeKind = ev.type === 'return' ? 'ret' : ev.type === 'error' ? 'err' : 'call'; }
+    renderEditor(); revealLine(activeLine);
+  }
+
+  /* ---------- קומפילציה והרצה ---------- */
+  function compile() {
+    stopPlay(); resetViz();
+    compileError = null; errLine = 0;
+    try {
+      progSrc = ta.value; progHl = highlight(progSrc); progRaw = progSrc.split('\n');
+      events = runProgram(ta.value);
+      N = events.length;
+    } catch (e) {
+      if (!(e instanceof CsError)) throw e;
+      compileError = { msg: e.message, line: e.line };
+      errLine = e.line; events = []; N = 0;
+    }
+    cur = 0; dirty = false;
+    activeLine = 0; activeKind = '';
+    const t = emptyEl.querySelector('h3'), p = emptyEl.querySelector('p');
+    if (compileError) { t.textContent = 'יש שגיאה בקוד'; p.textContent = `שורה ${compileError.line}: ${compileError.msg}`; }
+    else { t.textContent = 'לחצו על הרץ'; p.textContent = 'כל קריאה רקורסיבית תיפתח כאן בחלון חדש. החצים הכחולים יורדים בקריאה והכתומים עולים בחזרה. אפשר גם להתקדם צעד אחר צעד.'; }
+    renderEditor();
+    const st = stateAt(0);
+    renderNote(st); updateChrome(st);
+  }
+  function ensureCompiled() { if (dirty) compile(); return !compileError; }
+
+  function stepForward() {
+    flush();
+    if (cur >= N) return null;
+    const ev = events[cur]; cur++;
+    const k = cur;
+    setActive(ev);
+    const st = stateAt(k);
+    if (ev.type === 'return') {
+      markReturning(ev);
+      later(700, () => reconcile(stateAt(k), true));
+    } else reconcile(st, true);
+    updateChrome(st);
+    return ev;
+  }
+  function stepBack() {
+    flush();
+    if (cur <= 0) return;
+    cur--;
+    setActive(cur > 0 ? events[cur - 1] : null);
+    const st = stateAt(cur);
+    reconcile(st, true); updateChrome(st);
+  }
+  function delayFor(ev) {
+    const base = ev.type === 'return' ? 1120 : ev.type === 'call' ? 900 : ev.type === 'print' ? 520 : 600;
+    return Math.max(70, base * spdF);
+  }
+  function tick() {
+    if (!playing) return;
+    if (cur >= N) { stopPlay(); return; }
+    const ev = stepForward();
+    if (!ev) { stopPlay(); return; }
+    playTimer = setTimeout(tick, delayFor(ev));
+  }
+  function startPlay() { playing = true; updateRunBtn(); tick(); }
+  function stopPlay() { playing = false; clearTimeout(playTimer); updateRunBtn(); }
+
+  runBtn.addEventListener('click', () => {
+    if (playing) { stopPlay(); return; }
+    if (dirty) compile();
+    else if (cur >= N && N > 0) { resetViz(); cur = 0; setActive(null); const st = stateAt(0); renderNote(st); updateChrome(st); }
+    if (compileError || N === 0) return;
+    startPlay();
+  });
+  fwdBtn.addEventListener('click', () => { stopPlay(); if (!ensureCompiled()) return; stepForward(); });
+  backBtn.addEventListener('click', () => { stopPlay(); stepBack(); });
+
+  spdIn.addEventListener('input', () => {
+    const m = SPEEDS[+spdIn.value];
+    spdF = 1 / m;
+    app.style.setProperty('--spd', String(spdF));
+    spdOut.textContent = '×' + m;
+  });
+  spdIn.dispatchEvent(new Event('input'));
+
+  /* ---------- עורך ---------- */
+  function insertText(t) {
+    ta.focus();
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, t); } catch (e) { ok = false; }
+    if (!ok) { ta.setRangeText(t, ta.selectionStart, ta.selectionEnd, 'end'); ta.dispatchEvent(new Event('input')); }
+  }
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') { e.preventDefault(); insertText('    '); }
+    else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runBtn.click(); }
+    else if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      const before = ta.value.slice(0, ta.selectionStart);
+      const ls = before.lastIndexOf('\n') + 1, line = before.slice(ls);
+      const indent = /^[ \t]*/.exec(line)[0];
+      insertText('\n' + indent + (/\{\s*$/.test(line) ? '    ' : ''));
+    }
+  });
+  ta.addEventListener('input', () => {
+    dirty = true; errLine = 0; activeLine = 0; activeKind = '';
+    stopPlay();
+    renderEditor();
+    fwdBtn.disabled = false; updateRunBtn();
+  });
+  ta.addEventListener('scroll', syncScroll);
+  window.addEventListener('resize', syncScroll);
+
+  EXAMPLES.forEach((ex, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = ex.name; exSel.appendChild(o);
+  });
+  exSel.addEventListener('change', () => {
+    ta.value = EXAMPLES[+exSel.value].code;
+    ta.scrollTop = 0; ta.scrollLeft = 0;
+    dirty = true; compile();
+  });
+
+  ta.value = EXAMPLES[0].code;
+  compile();
+})();
+
+</script>
+
+</body></html>
