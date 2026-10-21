@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הדגמת וקטורים תלת-ממד - עצמאי לחלוטין</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        
+        body {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            background-color: #ffffff;
+            color: #000000;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 350px;
+            background-color: #e0e5ec;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            border-left: 3px solid #999;
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        h2 { font-size: 1.4rem; color: #000; text-align: center; border-bottom: 3px solid #aaa; padding-bottom: 10px; }
+
+        .vector-card {
+            background: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #ccc;
+            color: #000;
+        }
+
+        .card-red { border-right: 8px solid #d32f2f; }
+        .card-blue { border-right: 8px solid #1976d2; }
+        .card-green { border-right: 8px solid #2e7d32; background-color: #e8f5e9; }
+
+        .card-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 8px; }
+        .text-red { color: #b71c1c; }
+        .text-blue { color: #0d47a1; }
+        .text-green { color: #1b5e20; }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-weight: bold;
+        }
+
+        input[type="number"] {
+            width: 65px;
+            padding: 6px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-align: center;
+            border: 2px solid #666;
+            border-radius: 6px;
+            color: #000;
+            background: #fff;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 6px;
+            border: 2px solid #666;
+            color: #000;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .animate-btn {
+            width: 100%;
+            padding: 14px;
+            background-color: #0056b3;
+            color: #fff;
+            border: 2px solid #003d82;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .animate-btn:hover { background-color: #004085; }
+
+        #canvas-wrapper { flex-grow: 1; position: relative; }
+        .scene-label { color: #111; font: bold 18px 'Segoe UI', Tahoma, sans-serif; text-shadow: 0 0 3px #fff, 0 0 5px #fff; pointer-events: none; }
+    </style>
+
+    <!-- Three.js and OrbitControls are imported as ES modules below. -->
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>הדגמת וקטורים (מקומי)</h2>
+
+        <div class="vector-card card-red">
+            <div class="card-title text-red">וקטור A (אדום)</div>
+            <div class="input-row"><label>X:</label><input type="number" id="ax" value="4" step="1"></div>
+            <div class="input-row"><label>Y:</label><input type="number" id="ay" value="2" step="1"></div>
+            <div class="input-row"><label>Z:</label><input type="number" id="az" value="3" step="1"></div>
+        </div>
+
+        <div class="vector-card card-blue">
+            <div class="card-title text-blue">וקטור B (כחול)</div>
+            <div class="input-row"><label>X:</label><input type="number" id="bx" value="-2" step="1"></div>
+            <div class="input-row"><label>Y:</label><input type="number" id="by" value="3" step="1"></div>
+            <div class="input-row"><label>Z:</label><input type="number" id="bz" value="-1" step="1"></div>
+        </div>
+
+        <select id="operation">
+            <option value="add">חיבור ( R = A + B )</option>
+            <option value="sub">חיסור ( R = A - B )</option>
+        </select>
+
+        <button id="btn-animate" class="animate-btn">▶️ הפעל אנימציה</button>
+
+        <div class="vector-card card-green">
+            <div class="card-title text-green">תוצאה R (ירוק)</div>
+            <div style="font-weight: bold; font-size: 1.1rem;">
+                רכיבים: <span id="res-components">(0, 0, 0)</span><br>
+                אורך: <span id="res-magnitude">0.00</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-wrapper"></div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js';
+
+        const wrapper = document.getElementById('canvas-wrapper');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xebf0f5); 
+
+        const camera = new THREE.PerspectiveCamera(45, wrapper.clientWidth / wrapper.clientHeight, 0.1, 1000);
+        camera.position.set(15, 15, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(wrapper.clientWidth, wrapper.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        wrapper.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight.position.set(20, 30, 20);
+        scene.add(dirLight);
+
+        function createLabel(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 5; ctx.strokeStyle = 'white';
+            ctx.strokeText(text, 64, 32);
+            ctx.fillStyle = '#111'; ctx.fillText(text, 64, 32);
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(1.4, 0.7, 1);
+            return sprite;
+        }
+
+        scene.add(new THREE.GridHelper(20, 20, 0x444444, 0x999999));
+
+        function createThickArrow(colorHex, isAxis = false, opacity = 1.0) {
+            const group = new THREE.Group();
+            const material = new THREE.MeshPhongMaterial({ color: colorHex, transparent: opacity < 1.0, opacity: opacity });
+            const thickness = isAxis ? 0.08 : 0.25;
+            const headSize = isAxis ? 0.4 : 0.9;
+            const shaftGeo = new THREE.CylinderGeometry(thickness, thickness, 1, 16);
+            shaftGeo.rotateX(Math.PI / 2);
+            shaftGeo.translate(0, 0, 0.5);
+            const shaft = new THREE.Mesh(shaftGeo, material);
+            const headGeo = new THREE.ConeGeometry(thickness * 2.5, headSize, 16);
+            headGeo.rotateX(Math.PI / 2);
+            const head = new THREE.Mesh(headGeo, material);
+            group.add(shaft); group.add(head);
+            return { group, shaft, head, headSize };
+        }
+
+        function updateArrow(arrowObj, origin, vec) {
+            const len = vec.length();
+            if (len < 0.01) { arrowObj.group.visible = false; return; }
+            arrowObj.group.visible = true;
+            arrowObj.group.position.copy(origin);
+            arrowObj.group.lookAt(origin.clone().add(vec));
+            const shaftLen = Math.max(0.01, len - arrowObj.headSize);
+            arrowObj.shaft.scale.set(1, 1, shaftLen);
+            arrowObj.head.position.set(0, 0, shaftLen + arrowObj.headSize / 2);
+        }
+
+        const xAxis = createThickArrow(0x000000, true);
+        const yAxis = createThickArrow(0x000000, true);
+        const zAxis = createThickArrow(0x000000, true);
+        scene.add(xAxis.group, yAxis.group, zAxis.group);
+        updateArrow(xAxis, new THREE.Vector3(-10,0,0), new THREE.Vector3(20,0,0));
+        updateArrow(yAxis, new THREE.Vector3(0,-10,0), new THREE.Vector3(0,20,0));
+        updateArrow(zAxis, new THREE.Vector3(0,0,-10), new THREE.Vector3(0,0,20));
+        const labelX = createLabel('X'); labelX.position.set(10.8, 0, 0); scene.add(labelX);
+        const labelY = createLabel('Y'); labelY.position.set(0, 10.8, 0); scene.add(labelY);
+        const labelZ = createLabel('Z'); labelZ.position.set(0, 0, 10.8); scene.add(labelZ);
+
+        const arrowA = createThickArrow(0xd32f2f); 
+        const arrowB = createThickArrow(0x1976d2); 
+        const arrowR = createThickArrow(0x2e7d32); 
+        const arrowB_ghost = createThickArrow(0x1976d2, false, 0.3); 
+        const animArrowB = createThickArrow(0x1976d2);
+
+        scene.add(arrowA.group, arrowB.group, arrowR.group, arrowB_ghost.group, animArrowB.group);
+        const labelA = createLabel('A'); scene.add(labelA);
+        const labelB = createLabel('B'); scene.add(labelB);
+        const labelR = createLabel('R'); scene.add(labelR);
+        arrowB_ghost.group.visible = false;
+        animArrowB.group.visible = false;
+
+        let currentVecA = new THREE.Vector3();
+        let currentVecB = new THREE.Vector3();
+        let currentVecR = new THREE.Vector3();
+        let animating = false;
+        let animStart = 0;
+
+        function calculateVectors() {
+            if(animating) return;
+            currentVecA.set(parseFloat(document.getElementById('ax').value)||0, parseFloat(document.getElementById('ay').value)||0, parseFloat(document.getElementById('az').value)||0);
+            currentVecB.set(parseFloat(document.getElementById('bx').value)||0, parseFloat(document.getElementById('by').value)||0, parseFloat(document.getElementById('bz').value)||0);
+            const op = document.getElementById('operation').value;
+            if (op === 'add') currentVecR.addVectors(currentVecA, currentVecB);
+            else currentVecR.subVectors(currentVecA, currentVecB);
+
+            updateArrow(arrowA, new THREE.Vector3(0,0,0), currentVecA);
+            updateArrow(arrowB, new THREE.Vector3(0,0,0), currentVecB);
+            updateArrow(arrowR, new THREE.Vector3(0,0,0), currentVecR);
+            labelA.position.copy(currentVecA).multiplyScalar(0.78);
+            labelB.position.copy(currentVecB).multiplyScalar(0.78);
+            labelR.position.copy(currentVecR).multiplyScalar(0.78);
+            labelA.visible = currentVecA.length() >= 0.01;
+            labelB.visible = currentVecB.length() >= 0.01;
+            labelR.visible = currentVecR.length() >= 0.01;
+
+            document.getElementById('res-components').innerText = `(${currentVecR.x}, ${currentVecR.y}, ${currentVecR.z})`;
+            document.getElementById('res-magnitude').innerText = currentVecR.length().toFixed(2);
+        }
+
+        document.getElementById('btn-animate').addEventListener('click', () => {
+            if (animating) return;
+            animating = true;
+            animStart = performance.now();
+            arrowB.group.visible = false;
+            arrowR.group.visible = false;
+            arrowB_ghost.group.visible = true;
+            updateArrow(arrowB_ghost, new THREE.Vector3(0,0,0), currentVecB);
+            animArrowB.group.visible = true;
+        });
+
+        function handleAnimation() {
+            if (!animating) return;
+            const elapsed = performance.now() - animStart;
+            const op = document.getElementById('operation').value;
+            
+            if (op === 'add') {
+                const tMove = Math.min(elapsed / 1500, 1.0);
+                const tGrow = Math.max(0, Math.min((elapsed - 1500) / 1000, 1.0));
+                const easeMove = tMove < 0.5 ? 2 * tMove * tMove : -1 + (4 - 2 * tMove) * tMove;
+                updateArrow(animArrowB, currentVecA.clone().multiplyScalar(easeMove), currentVecB);
+                if (tGrow > 0) {
+                    arrowR.group.visible = true;
+                    updateArrow(arrowR, new THREE.Vector3(0,0,0), currentVecR.clone().multiplyScalar(tGrow));
+                }
+                if (elapsed >= 2800) finishAnimation();
+            } else {
+                const tFlip = Math.min(elapsed / 1200, 1.0);
+                const tMove = Math.max(0, Math.min((elapsed - 1200) / 1500, 1.0));
+                const tGrow = Math.max(0, Math.min((elapsed - 2700) / 1000, 1.0));
+                const easeFlip = tFlip < 0.5 ? 2 * tFlip * tFlip : -1 + (4 - 2 * tFlip) * tFlip;
+                const easeMove = tMove < 0.5 ? 2 * tMove * tMove : -1 + (4 - 2 * tMove) * tMove;
+                const vecMinusB = currentVecB.clone().negate();
+                
+                if (tFlip < 1.0) {
+                    updateArrow(animArrowB, new THREE.Vector3(0,0,0), new THREE.Vector3().lerpVectors(currentVecB, vecMinusB, easeFlip));
+                } else {
+                    updateArrow(animArrowB, currentVecA.clone().multiplyScalar(easeMove), vecMinusB);
+                }
+                if (tGrow > 0) {
+                    arrowR.group.visible = true;
+                    updateArrow(arrowR, new THREE.Vector3(0,0,0), currentVecR.clone().multiplyScalar(tGrow));
+                }
+                if (elapsed >= 4000) finishAnimation();
+            }
+            // Keep vector names near the currently displayed arrows during animation.
+            if (animating) {
+                labelA.position.copy(currentVecA).multiplyScalar(0.78);
+                labelB.position.copy(animArrowB.group.position).add(currentVecB.clone().multiplyScalar(0.78));
+                labelR.position.copy(currentVecR).multiplyScalar(0.78);
+                labelA.visible = currentVecA.length() >= 0.01;
+                labelB.visible = animArrowB.group.visible;
+                labelR.visible = arrowR.group.visible && currentVecR.length() >= 0.01;
+            }
+        }
+        
+        function finishAnimation() {
+            animating = false;
+            arrowB_ghost.group.visible = false;
+            animArrowB.group.visible = false;
+            calculateVectors();
+        }
+
+        function interruptAnimation() {
+            if (animating) {
+                animating = false;
+                arrowB_ghost.group.visible = false;
+                animArrowB.group.visible = false;
+            }
+            calculateVectors();
+        }
+
+        document.querySelectorAll('input, select').forEach(input => input.addEventListener('input', interruptAnimation));
+        window.addEventListener('resize', () => {
+            camera.aspect = wrapper.clientWidth / wrapper.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(wrapper.clientWidth, wrapper.clientHeight);
+        });
+
+        calculateVectors();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            handleAnimation();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
